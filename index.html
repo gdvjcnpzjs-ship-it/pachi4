@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PachiMatrix">
+  <link rel="manifest" id="manifest-link">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23001100'/%3E%3Ctext y='65' x='18' font-size='45' fill='%2300ff41' font-family='monospace' font-weight='bold'%3EPM%3C/text%3E%3C/svg%3E">
+  
+  <title>PachiMatrix</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #000a00;
+      --fg: #00ff41;
+      --plus: #00ffff;  /* シアン */
+      --minus: #ff007f; /* ピンク */
+      --dim: #004411;
+      --card: #001500;
+    }
+    * { box-sizing: border-box; font-family: 'Courier New', Courier, monospace; }
+    
+    body { 
+      background-color: var(--bg); 
+      color: var(--fg); 
+      margin: 0; 
+      padding-top: calc(env(safe-area-inset-top) + 50px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 40px);
+    }
+    
+    .text-plus { color: var(--plus); text-shadow: 0 0 3px var(--plus); }
+    .text-minus { color: var(--minus); text-shadow: 0 0 3px var(--minus); }
+    
+    /* iPhone重なり防止用固定ヘッダー */
+    .tabs { 
+      display: flex; 
+      position: fixed; 
+      top: 0; 
+      left: 0;
+      right: 0;
+      background: #000; 
+      border-bottom: 1px solid var(--fg); 
+      z-index: 1000; 
+      padding-top: env(safe-area-inset-top); 
+      height: calc(env(safe-area-inset-top) + 50px);
+    }
+    .tab-btn { 
+      flex: 1; 
+      background: none; 
+      color: var(--dim); 
+      border: none; 
+      font-size: 14px; 
+      font-weight: bold; 
+      cursor: pointer; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tab-btn.active { color: var(--fg); background: var(--card); box-shadow: inset 0 -3px 0 var(--fg); }
+    
+    .container { padding: 15px; display: none; }
+    .container.active { display: block; }
+    
+    .form-group { margin-bottom: 12px; display: flex; flex-direction: column; }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    label { font-size: 12px; margin-bottom: 4px; color: #00cc33; }
+    input, select, textarea { 
+      background: var(--card); 
+      color: var(--fg); 
+      border: 1px solid var(--dim); 
+      padding: 10px; 
+      font-size: 16px; /* 16pxでiOSのズーム防止 */
+      border-radius: 4px; 
+      width: 100%; 
+      -webkit-appearance: none;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--fg); }
+    input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--fg); -webkit-appearance: checkbox; }
+    .checkbox-group { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    
+    button { 
+      background: var(--card); 
+      color: var(--fg); 
+      border: 1px solid var(--fg); 
+      padding: 12px; 
+      font-size: 14px; 
+      border-radius: 4px; 
+      width: 100%; 
+      font-weight: bold; 
+      cursor: pointer; 
+    }
+    button:active { background: var(--fg); color: var(--bg); }
+    .btn-draft { border-color: #ffaa00; color: #ffaa00; }
+    .btn-draft:active { background: #ffaa00; color: #000; }
+    .btn-delete { border-color: var(--minus); color: var(--minus); }
+    .btn-delete:active { background: var(--minus); color: #000; }
+    
+    .result-box { background: var(--card); border: 1px dashed var(--fg); padding: 12px; text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 15px; }
+    
+    .card { background: var(--card); border: 1px solid var(--dim); padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+    .card-header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--dim); padding-bottom: 6px; margin-bottom: 6px; font-weight: bold; }
+    .card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; }
+    .card-memo { font-size: 12px; color: #aaa; margin-top: 6px; padding-top: 4px; border-top: 1px dashed var(--dim); word-break: break-all; }
+    .card-actions { display: flex; gap: 10px; margin-top: 10px; }
+    .btn-small { padding: 6px; font-size: 12px; }
+    
+    .dash-section { margin-bottom: 25px; border: 1px solid var(--dim); padding: 10px; background: var(--card); border-radius: 4px; }
+    .dash-section h3 { margin-top: 0; border-bottom: 1px dashed var(--fg); padding-bottom: 5px; font-size: 15px; color: #00cc33; }
+    
+    .summary-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .summary-card { background: #000; border: 1px solid var(--dim); padding: 8px; text-align: center; border-radius: 4px; }
+    .summary-card label { font-size: 10px; color: #888; display: block; margin-bottom: 2px; }
+    .summary-card val { font-size: 14px; font-weight: bold; display: block; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    th, td { border: 1px solid var(--dim); padding: 6px 4px; text-align: left; }
+    th { background: #002200; }
+    .chart-container { position: relative; height: 230px; width: 100%; margin-top: 10px; }
+    
+    hr { border: 0; border-bottom: 1px solid var(--dim); margin: 20px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- タブ -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-input')">入力/履歴</button>
+    <button class="tab-btn" onclick="switchTab('tab-dash')">分析(DASH)</button>
+    <button class="tab-btn" onclick="switchTab('tab-settings')">設定(I/O)</button>
+  </div>
+
+  <!-- タブ1: 入力/履歴 -->
+  <div id="tab-input" class="container active">
+    <form id="record-form">
+      <input type="hidden" id="record-id">
+      <input type="hidden" id="is-draft" value="false">
+      
+      <div class="form-row">
+        <div class="form-group" style="flex:2;">
+          <label>日付</label>
+          <input type="date" id="date" required>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>スペック</label>
+          <select id="spec">
+            <option value="MAX" selected>MAX</option>
+            <option value="ミドル">ミドル</option>
+            <option value="ライトミドル">ライトミドル</option>
+            <option value="甘デジ">甘デジ</option>
+            <option value="Aタイプ">Aタイプ</option>
+            <option value="ATタイプ">ATタイプ</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>店名</label>
+        <input type="text" id="store" list="storeList" placeholder="店名入力">
+      </div>
+      
+      <div class="form-group">
+        <label>台名</label>
+        <input type="text" id="machine" list="machineList" placeholder="機種名入力">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group"><label>開始時間</label><input type="time" id="startTime"></div>
+        <div class="form-group"><label>終了時間</label><input type="time" id="endTime"></div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group"><label>当たり回数</label><input type="number" id="hitCount" min="0" placeholder="0"></div>
+        <div class="form-group"><label>最大連チャン</label><input type="number" id="maxStreak" min="0" placeholder="0"></div>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="kakenuke">
+        <label for="kakenuke" style="font-size: 14px; margin:0;">駆け抜け (見せ場なし)</label>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group"><label>投資金額(円)</label><input type="number" id="invest" min="0" placeholder="0"></div>
+        <div class="form-group"><label>回収金額(円)</label><input type="number" id="recover" min="0" placeholder="0"></div>
+      </div>
+      
+      <div class="result-box" id="calc-result">収支: 0円 (回収率: 0%)</div>
+      
+      <div class="form-group">
+        <label>自由メモ</label>
+        <textarea id="memo" rows="2" placeholder="メモを入力"></textarea>
+      </div>
+      
+      <div class="form-row" style="margin-bottom: 8px;">
+        <button type="button" class="btn-draft" onclick="saveRecord(true)">一時保存 (打始め等)</button>
+        <button type="submit" id="btn-save">確定保存</button>
+      </div>
+      <button type="button" id="btn-cancel" style="display:none; background:#333;" onclick="resetForm()">編集キャンセル</button>
+    </form>
+
+    <hr>
+    <div style="font-size: 14px; margin-bottom: 10px;">▼ 履歴 (新しい日時順)</div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- タブ2: ダッシュボード -->
+  <div id="tab-dash" class="container">
+    <div class="dash-section">
+      <h3>収支サマリー ＆ 推移グラフ</h3>
+      <select id="chart-period" onchange="renderDashboard()" style="margin-bottom:10px;">
+        <option value="week">直近7日間</option>
+        <option value="month">今月</option>
+        <option value="year">今年 (月別)</option>
+        <option value="all">全期間 (月別)</option>
+      </select>
+      
+      <!-- 金額表示サマリーカード -->
+      <div class="summary-cards">
+        <div class="summary-card"><label>総投資</label><val id="sum-invest">0円</val></div>
+        <div class="summary-card"><label>総回収</label><val id="sum-recover">0円</val></div>
+        <div class="summary-card"><label>トータル収支</label><val id="sum-profit">0円</val></div>
+        <div class="summary-card"><label>総合回収率</label><val id="sum-rate">0%</val></div>
+      </div>
+
+      <div class="chart-container"><canvas id="myChart"></canvas></div>
+    </div>
+    
+    <div class="dash-section">
+      <h3>特定日・時期 勝率</h3>
+      <table id="tbl-special"></table>
+    </div>
+
+    <div class="dash-section">
+      <h3>投資上限額 シミュレーション</h3>
+      <div class="form-row" style="margin-bottom:10px; align-items: center;">
+        <input type="number" id="limit-amount" value="30000" step="1000" oninput="renderLimitStats()" style="width:120px;">
+        <span style="font-size: 13px;">円以下 vs 超過</span>
+      </div>
+      <table id="tbl-limit"></table>
+    </div>
+
+    <div class="dash-section">
+      <h3>スペック別 勝率</h3>
+      <table id="tbl-spec"></table>
+    </div>
+    
+    <div class="dash-section">
+      <h3>店別 勝率</h3>
+      <table id="tbl-store"></table>
+    </div>
+    
+    <div class="dash-section">
+      <h3>台別 勝率</h3>
+      <table id="tbl-machine"></table>
+    </div>
+    
+    <div class="dash-section">
+      <h3>曜日別 勝率</h3>
+      <table id="tbl-weekday"></table>
+    </div>
+  </div>
+
+  <!-- タブ3: 設定(I/O) -->
+  <div id="tab-settings" class="container">
+    <div class="dash-section">
+      <h3>エクスポート (JSON保存)</h3>
+      <p style="font-size:12px;">現在の全データをファイル出力します。</p>
+      <button onclick="exportJSON()">JSONを出力する</button>
+    </div>
+    <div class="dash-section">
+      <h3>インポート (上書き)</h3>
+      <p style="font-size:12px; color:var(--minus);">※既存データは全て上書きされます。</p>
+      <input type="file" id="import-file" accept=".json" style="margin-bottom:10px;">
+      <button class="btn-delete" onclick="importJSON()">インポート実行</button>
+    </div>
+  </div>
+
+  <!-- サジェストリスト -->
+  <datalist id="storeList"></datalist>
+  <datalist id="machineList"></datalist>
+
+  <script>
+    const STORAGE_KEY = 'PACHI_MATRIX_DATA';
+    let data = [];
+    let chartInstance = null;
+
+    // 初期化
+    window.onload = () => {
+      initPWA();
+      loadData();
+      resetForm();
+      document.getElementById('invest').addEventListener('input', updateResultUI);
+      document.getElementById('recover').addEventListener('input', updateResultUI);
+      document.getElementById('record-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveRecord(false);
+      });
+    };
+
+    function initPWA() {
+      const manifest = {
+        name: "PachiMatrix", short_name: "PM", display: "standalone",
+        background_color: "#000a00", theme_color: "#00ff41",
+        icons: [{ src: document.querySelector('link[rel="apple-touch-icon"]').href, sizes: "192x192", type: "image/svg+xml" }]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+      document.getElementById('manifest-link').href = URL.createObjectURL(blob);
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.container').forEach(e => e.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      if (tabId === 'tab-dash') renderDashboard();
+    }
+
+    // データロード
+    function loadData() {
+      data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      updateDataLists();
+      renderHistory();
+    }
+
+    // 保存処理（Draftフラグ対応・0円未入力補完）
+    function saveRecord(isDraft = false) {
+      const id = document.getElementById('record-id').value || Date.now().toString();
+      const record = {
+        id,
+        isDraft: isDraft,
+        date: document.getElementById('date').value,
+        spec: document.getElementById('spec').value,
+        store: document.getElementById('store').value.trim(),
+        machine: document.getElementById('machine').value.trim(),
+        startTime: document.getElementById('startTime').value,
+        endTime: document.getElementById('endTime').value,
+        hitCount: Number(document.getElementById('hitCount').value) || 0,
+        maxStreak: Number(document.getElementById('maxStreak').value) || 0,
+        kakenuke: document.getElementById('kakenuke').checked,
+        invest: Number(document.getElementById('invest').value) || 0,
+        recover: Number(document.getElementById('recover').value) || 0,
+        memo: document.getElementById('memo').value.trim()
+      };
+
+      const idx = data.findIndex(r => r.id === id);
+      if (idx > -1) data[idx] = record; else data.push(record);
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      loadData();
+      resetForm();
+    }
+
+    function editRecord(id) {
+      const r = data.find(x => x.id === id);
+      if(!r) return;
+      document.getElementById('record-id').value = r.id;
+      ['date','spec','store','machine','startTime','endTime','hitCount','maxStreak','invest','recover','memo'].forEach(k => {
+        document.getElementById(k).value = r[k] !== undefined ? r[k] : '';
+      });
+      document.getElementById('kakenuke').checked = r.kakenuke || false;
+      updateResultUI();
+      document.getElementById('btn-save').textContent = '確定更新';
+      document.getElementById('btn-cancel').style.display = 'block';
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+
+    function deleteRecord(id) {
+      if(!confirm('削除しますか？')) return;
+      data = data.filter(x => x.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      loadData();
+    }
+
+    function resetForm() {
+      document.getElementById('record-form').reset();
+      document.getElementById('record-id').value = '';
+      document.getElementById('spec').value = 'MAX';
+      document.getElementById('date').value = new Date().toLocaleDateString('sv-SE');
+      updateResultUI();
+      document.getElementById('btn-save').textContent = '確定保存';
+      document.getElementById('btn-cancel').style.display = 'none';
+    }
+
+    // ユーティリティ
+    function formatMoney(n) { return (n > 0 ? '+' : '') + n.toLocaleString(); }
+    function getClass(n) { return n > 0 ? 'text-plus' : (n < 0 ? 'text-minus' : ''); }
+    
+    function updateResultUI() {
+      const i = Number(document.getElementById('invest').value) || 0;
+      const r = Number(document.getElementById('recover').value) || 0;
+      const p = r - i;
+      const rate = i > 0 ? ((r/i)*100).toFixed(1) : (r > 0 ? 100 : 0);
+      document.getElementById('calc-result').innerHTML = `<span class="${getClass(p)}">収支: ${formatMoney(p)}円 (回収率: ${rate}%)</span>`;
+    }
+
+    function updateDataLists() {
+      const stores = [...new Set(data.map(d => d.store).filter(Boolean))];
+      const machines = [...new Set(data.map(d => d.machine).filter(Boolean))];
+      document.getElementById('storeList').innerHTML = stores.map(s => `<option value="${s}">`).join('');
+      document.getElementById('machineList').innerHTML = machines.map(m => `<option value="${m}">`).join('');
+    }
+
+    // 履歴レンダリング（日付・時刻の降順、メモ・当たり回数常時表示）
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      const sorted = [...data].sort((a,b) => {
+        const dtA = new Date(`${a.date}T${a.startTime || '00:00'}`);
+        const dtB = new Date(`${b.date}T${b.startTime || '00:00'}`);
+        return dtB - dtA;
+      });
+
+      if(sorted.length === 0) {
+        list.innerHTML = '<div style="color:var(--dim); text-align:center; padding:20px;">データがありません</div>';
+        return;
+      }
+
+      list.innerHTML = sorted.map(r => {
+        const p = r.recover - r.invest;
+        const draftBadge = r.isDraft ? '<span style="color:#ffaa00; border:1px solid #ffaa00; font-size:10px; padding:1px 4px; border-radius:3px; margin-right:5px;">一時保存</span>' : '';
+        const timeStr = r.startTime ? `${r.startTime}${r.endTime ? '~'+r.endTime : ''}` : '';
+        
+        return `
+          <div class="card" style="${r.isDraft ? 'border-color:#ffaa00;' : ''}">
+            <div class="card-header">
+              <span>${draftBadge}${r.date} <small style="font-weight:normal; color:#888;">${timeStr}</small></span>
+              <span class="${getClass(p)}">${formatMoney(p)}円</span>
+            </div>
+            <div class="card-body">
+              <div>店: ${r.store || '-'}</div>
+              <div>台: ${r.machine || '-'} (${r.spec})</div>
+              <div>投: ${r.invest.toLocaleString()}円</div>
+              <div>回: ${r.recover.toLocaleString()}円</div>
+              <div>当り: ${r.hitCount}回</div>
+              <div>連ﾁｬﾝ: ${r.maxStreak}連 ${r.kakenuke ? '🏃‍♂️' : ''}</div>
+            </div>
+            ${r.memo ? `<div class="card-memo">メモ: ${r.memo}</div>` : ''}
+            <div class="card-actions">
+              <button class="btn-small" onclick="editRecord('${r.id}')">編集</button>
+              <button class="btn-small btn-delete" onclick="deleteRecord('${r.id}')">削除</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ダッシュボード分析
+    function calcStats(arr) {
+      const count = arr.length;
+      const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
+      const profit = arr.reduce((sum, x) => sum + (x.recover - x.invest), 0);
+      const rate = count > 0 ? Math.round((wins/count)*100) : 0;
+      return { count, wins, profit, rate };
+    }
+
+    function buildTableHtml(groupObj) {
+      let html = `<tr><th>項目</th><th>勝率</th><th>収支</th></tr>`;
+      for(const [key, arr] of Object.entries(groupObj)) {
+        const s = calcStats(arr);
+        html += `<tr><td>${key}</td><td>${s.wins}/${s.count}(${s.rate}%)</td><td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td></tr>`;
+      }
+      return html;
+    }
+
+    function checkSpecialDays(dStr) {
+      const d = new Date(dStr);
+      const day = d.getDate(), mo = d.getMonth() + 1;
+      let tags = [];
+      if([7,17,27].includes(day)) tags.push("7の日");
+      if([11,22].includes(day)) tags.push("ゾロ目の日");
+      if(mo === day) tags.push("月日ゾロ目(1/1等)");
+      if(tags.length === 0) tags.push("通常日");
+      return tags;
+    }
+
+    function getPeriodInMonth(dStr) {
+      const day = new Date(dStr).getDate();
+      if(day <= 10) return "上旬(1~10日)";
+      if(day <= 20) return "中旬(11~20日)";
+      return "下旬(21日~)";
+    }
+
+    function getWeekday(dStr) {
+      const w = ['日','月','火','水','木','金','土'];
+      return w[new Date(dStr).getDay()] + '曜';
+    }
+
+    function renderDashboard() {
+      const gSpec = {}, gStore = {}, gMachine = {}, gSpecial = {}, gWeek = {};
+      
+      data.forEach(r => {
+        (gSpec[r.spec] = gSpec[r.spec]||[]).push(r);
+        (gStore[r.store || '不明'] = gStore[r.store || '不明']||[]).push(r);
+        (gMachine[r.machine || '不明'] = gMachine[r.machine || '不明']||[]).push(r);
+        
+        checkSpecialDays(r.date).forEach(t => (gSpecial[t] = gSpecial[t]||[]).push(r));
+        (gSpecial[getPeriodInMonth(r.date)] = gSpecial[getPeriodInMonth(r.date)]||[]).push(r);
+        (gWeek[getWeekday(r.date)] = gWeek[getWeekday(r.date)]||[]).push(r);
+      });
+
+      document.getElementById('tbl-spec').innerHTML = buildTableHtml(gSpec);
+      document.getElementById('tbl-store').innerHTML = buildTableHtml(gStore);
+      document.getElementById('tbl-machine').innerHTML = buildTableHtml(gMachine);
+      document.getElementById('tbl-special').innerHTML = buildTableHtml(gSpecial);
+      document.getElementById('tbl-weekday').innerHTML = buildTableHtml(gWeek);
+
+      renderLimitStats();
+      renderChartAndSummary();
+    }
+
+    function renderLimitStats() {
+      const limit = Number(document.getElementById('limit-amount').value) || 0;
+      const gLimit = { [`${limit}円以下`]: [], [`${limit}円超過`]: [] };
+      data.forEach(r => {
+        if(r.invest <= limit) gLimit[`${limit}円以下`].push(r);
+        else gLimit[`${limit}円超過`].push(r);
+      });
+      document.getElementById('tbl-limit').innerHTML = buildTableHtml(gLimit);
+    }
+
+    // Chart.js ＆ 数値サマリー描画
+    function renderChartAndSummary() {
+      const period = document.getElementById('chart-period').value;
+      const sorted = [...data].sort((a,b) => new Date(a.date) - new Date(b.date));
+      const now = new Date();
+      
+      let filtered = sorted.filter(r => {
+        const d = new Date(r.date);
+        if(period === 'week') return ((now - d) / (1000*60*60*24)) <= 7;
+        if(period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if(period === 'year') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      // 数値サマリー算出
+      const totInvest = filtered.reduce((sum, r) => sum + r.invest, 0);
+      const totRecover = filtered.reduce((sum, r) => sum + r.recover, 0);
+      const totProfit = totRecover - totInvest;
+      const totRate = totInvest > 0 ? ((totRecover / totInvest) * 100).toFixed(1) : (totRecover > 0 ? 100 : 0);
+
+      document.getElementById('sum-invest').textContent = `${totInvest.toLocaleString()}円`;
+      document.getElementById('sum-recover').textContent = `${totRecover.toLocaleString()}円`;
+      
+      const pEl = document.getElementById('sum-profit');
+      pEl.textContent = `${formatMoney(totProfit)}円`;
+      pEl.className = getClass(totProfit);
+
+      document.getElementById('sum-rate').textContent = `${totRate}%`;
+
+      // グラフ描画
+      let agg = {};
+      filtered.forEach(r => {
+        let key = (period === 'year' || period === 'all') ? r.date.substring(0,7) : r.date;
+        agg[key] = (agg[key] || 0) + (r.recover - r.invest);
+      });
+
+      const labels = Object.keys(agg).sort();
+      let cumulative = 0;
+      const chartData = labels.map(k => {
+        cumulative += agg[k];
+        return cumulative;
+      });
+
+      if(chartInstance) chartInstance.destroy();
+      const ctx = document.getElementById('myChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '累計収支',
+            data: chartData,
+            borderColor: '#00ff41',
+            backgroundColor: 'rgba(0, 255, 65, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.1,
+            pointBackgroundColor: chartData.map(v => v >= 0 ? '#00ffff' : '#ff007f')
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#00ff41', font:{size:10} }, grid: { color: '#002200' } },
+            y: { ticks: { color: '#00ff41', font:{size:10} }, grid: { color: '#002200' } }
+          },
+          plugins: {
+            legend: { labels: { color: '#00ff41', font:{size:12} } }
+          }
+        }
+      });
+    }
+
+    // エクスポート・インポート
+    function exportJSON() {
+      const str = localStorage.getItem(STORAGE_KEY) || '[]';
+      const blob = new Blob([str], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pachimatrix_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importJSON() {
+      const fileInput = document.getElementById('import-file');
+      if (!fileInput.files.length) return alert('ファイルを選択してください。');
+      if (!confirm('現在のデータは全て上書きされます。よろしいですか？')) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if(!Array.isArray(imported)) throw new Error('形式が不正です');
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+          alert('インポート完了しました！');
+          loadData();
+          fileInput.value = '';
+        } catch (err) {
+          alert('ファイルの読み込みに失敗しました。正しいJSONを選択してください。');
+        }
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+  </script>
+</body>
+</html>
