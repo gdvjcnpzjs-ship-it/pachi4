@@ -65,6 +65,19 @@
     .container { padding: 15px; display: none; }
     .container.active { display: block; }
     
+    /* 今日のサマリー */
+    .today-summary {
+      display: flex;
+      justify-content: space-around;
+      background: #002200;
+      border: 1px solid var(--fg);
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
     .form-group { margin-bottom: 12px; display: flex; flex-direction: column; }
     .form-row { display: flex; gap: 10px; }
     .form-row .form-group { flex: 1; }
@@ -136,6 +149,14 @@
 
   <!-- タブ1: 入力/履歴 -->
   <div id="tab-input" class="container active">
+    
+    <!-- 本日のサマリー表示 -->
+    <div class="today-summary">
+      <span>投: <span id="today-inv">0</span></span>
+      <span>回: <span id="today-rec">0</span></span>
+      <span>率: <span id="today-rate">0%</span></span>
+    </div>
+
     <form id="record-form">
       <input type="hidden" id="record-id">
       <input type="hidden" id="is-draft" value="false">
@@ -212,10 +233,9 @@
     <div class="dash-section">
       <h3>収支サマリー ＆ 推移グラフ</h3>
       <select id="chart-period" onchange="renderDashboard()" style="margin-bottom:10px;">
-        <option value="week">直近7日間</option>
+        <option value="all" selected>全期間 (月別)</option>
         <option value="month">今月</option>
         <option value="year">今年 (月別)</option>
-        <option value="all">全期間 (月別)</option>
       </select>
       
       <!-- 金額表示サマリーカード -->
@@ -237,7 +257,7 @@
     <div class="dash-section">
       <h3>投資上限額 シミュレーション</h3>
       <div class="form-row" style="margin-bottom:10px; align-items: center;">
-        <input type="number" id="limit-amount" value="30000" step="1000" oninput="renderLimitStats()" style="width:120px;">
+        <input type="number" id="limit-amount" value="20000" step="1000" oninput="renderLimitStats()" style="width:120px;">
         <span style="font-size: 13px;">円以下 vs 超過</span>
       </div>
       <table id="tbl-limit"></table>
@@ -324,6 +344,27 @@
       data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       updateDataLists();
       renderHistory();
+      renderTodaySummary();
+    }
+    
+    // 本日サマリーの描画
+    function renderTodaySummary() {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const todayData = data.filter(r => r.date === todayStr);
+      
+      const tInv = todayData.reduce((sum, r) => sum + r.invest, 0);
+      const tRec = todayData.reduce((sum, r) => sum + r.recover, 0);
+      const profit = tRec - tInv;
+      const rate = tInv > 0 ? ((tRec / tInv) * 100).toFixed(1) : (tRec > 0 ? 100 : 0);
+      
+      document.getElementById('today-inv').textContent = tInv.toLocaleString();
+      document.getElementById('today-rec').textContent = tRec.toLocaleString();
+      
+      const rateEl = document.getElementById('today-rate');
+      rateEl.textContent = rate + '%';
+      if (profit > 0) rateEl.className = 'text-plus';
+      else if (profit < 0) rateEl.className = 'text-minus';
+      else rateEl.className = '';
     }
 
     // 保存処理（Draftフラグ対応・0円未入力補完）
@@ -529,7 +570,6 @@
       
       let filtered = sorted.filter(r => {
         const d = new Date(r.date);
-        if(period === 'week') return ((now - d) / (1000*60*60*24)) <= 7;
         if(period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         if(period === 'year') return d.getFullYear() === now.getFullYear();
         return true;
