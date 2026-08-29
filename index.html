@@ -79,14 +79,14 @@
     }
 
     .form-group { margin-bottom: 12px; display: flex; flex-direction: column; }
-    .form-row { display: flex; gap: 10px; }
-    .form-row .form-group { flex: 1; }
-    label { font-size: 12px; margin-bottom: 4px; color: #00cc33; }
+    .form-row { display: flex; gap: 8px; }
+    .form-row .form-group { flex: 1; min-width: 0; }
+    label { font-size: 12px; margin-bottom: 4px; color: #00cc33; white-space: nowrap; }
     input, select, textarea { 
       background: var(--card); 
       color: var(--fg); 
       border: 1px solid var(--dim); 
-      padding: 10px; 
+      padding: 10px 8px; 
       font-size: 16px; /* 16pxでiOSのズーム防止 */
       border-radius: 4px; 
       width: 100%; 
@@ -122,7 +122,7 @@
     .card-actions { display: flex; gap: 10px; margin-top: 10px; }
     .btn-small { padding: 6px; font-size: 12px; }
     
-    .dash-section { margin-bottom: 25px; border: 1px solid var(--dim); padding: 10px; background: var(--card); border-radius: 4px; }
+    .dash-section { margin-bottom: 25px; border: 1px solid var(--dim); padding: 10px; background: var(--card); border-radius: 4px; overflow-x: auto; }
     .dash-section h3 { margin-top: 0; border-bottom: 1px dashed var(--fg); padding-bottom: 5px; font-size: 15px; color: #00cc33; }
     
     .summary-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
@@ -130,9 +130,9 @@
     .summary-card label { font-size: 10px; color: #888; display: block; margin-bottom: 2px; }
     .summary-card val { font-size: 14px; font-weight: bold; display: block; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
-    th, td { border: 1px solid var(--dim); padding: 6px 4px; text-align: left; }
-    th { background: #002200; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+    th, td { border: 1px solid var(--dim); padding: 5px 3px; text-align: left; }
+    th { background: #002200; white-space: nowrap; }
     .chart-container { position: relative; height: 230px; width: 100%; margin-top: 10px; }
     
     hr { border: 0; border-bottom: 1px solid var(--dim); margin: 20px 0; }
@@ -196,6 +196,7 @@
       
       <div class="form-row">
         <div class="form-group"><label>当たり回数</label><input type="number" id="hitCount" min="0" placeholder="0"></div>
+        <div class="form-group"><label>ST突入数</label><input type="number" id="stCount" min="0" placeholder="0"></div>
         <div class="form-group"><label>最大連チャン</label><input type="number" id="maxStreak" min="0" placeholder="0"></div>
       </div>
       
@@ -274,7 +275,7 @@
     </div>
     
     <div class="dash-section">
-      <h3>台別 勝率</h3>
+      <h3>台別 詳細データ</h3>
       <table id="tbl-machine"></table>
     </div>
     
@@ -367,7 +368,7 @@
       else rateEl.className = '';
     }
 
-    // 保存処理（Draftフラグ対応・0円未入力補完）
+    // 保存処理（ST突入数追加）
     function saveRecord(isDraft = false) {
       const id = document.getElementById('record-id').value || Date.now().toString();
       const record = {
@@ -380,6 +381,7 @@
         startTime: document.getElementById('startTime').value,
         endTime: document.getElementById('endTime').value,
         hitCount: Number(document.getElementById('hitCount').value) || 0,
+        stCount: Number(document.getElementById('stCount').value) || 0,
         maxStreak: Number(document.getElementById('maxStreak').value) || 0,
         kakenuke: document.getElementById('kakenuke').checked,
         invest: Number(document.getElementById('invest').value) || 0,
@@ -399,7 +401,7 @@
       const r = data.find(x => x.id === id);
       if(!r) return;
       document.getElementById('record-id').value = r.id;
-      ['date','spec','store','machine','startTime','endTime','hitCount','maxStreak','invest','recover','memo'].forEach(k => {
+      ['date','spec','store','machine','startTime','endTime','hitCount','stCount','maxStreak','invest','recover','memo'].forEach(k => {
         document.getElementById(k).value = r[k] !== undefined ? r[k] : '';
       });
       document.getElementById('kakenuke').checked = r.kakenuke || false;
@@ -445,7 +447,7 @@
       document.getElementById('machineList').innerHTML = machines.map(m => `<option value="${m}">`).join('');
     }
 
-    // 履歴レンダリング（日付・時刻の降順、メモ・当たり回数常時表示）
+    // 履歴レンダリング（ST突入数の表示追加）
     function renderHistory() {
       const list = document.getElementById('history-list');
       const sorted = [...data].sort((a,b) => {
@@ -463,6 +465,7 @@
         const p = r.recover - r.invest;
         const draftBadge = r.isDraft ? '<span style="color:#ffaa00; border:1px solid #ffaa00; font-size:10px; padding:1px 4px; border-radius:3px; margin-right:5px;">一時保存</span>' : '';
         const timeStr = r.startTime ? `${r.startTime}${r.endTime ? '~'+r.endTime : ''}` : '';
+        const stStr = r.stCount !== undefined ? ` (ST:${r.stCount})` : '';
         
         return `
           <div class="card" style="${r.isDraft ? 'border-color:#ffaa00;' : ''}">
@@ -475,7 +478,7 @@
               <div>台: ${r.machine || '-'} (${r.spec})</div>
               <div>投: ${r.invest.toLocaleString()}円</div>
               <div>回: ${r.recover.toLocaleString()}円</div>
-              <div>当り: ${r.hitCount}回</div>
+              <div>当り: ${r.hitCount}回${stStr}</div>
               <div>連ﾁｬﾝ: ${r.maxStreak}連 ${r.kakenuke ? '🏃‍♂️' : ''}</div>
             </div>
             ${r.memo ? `<div class="card-memo">メモ: ${r.memo}</div>` : ''}
@@ -488,7 +491,7 @@
       }).join('');
     }
 
-    // ダッシュボード分析
+    // ダッシュボード分析用（標準テーブル）
     function calcStats(arr) {
       const count = arr.length;
       const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
@@ -502,6 +505,33 @@
       for(const [key, arr] of Object.entries(groupObj)) {
         const s = calcStats(arr);
         html += `<tr><td>${key}</td><td>${s.wins}/${s.count}(${s.rate}%)</td><td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td></tr>`;
+      }
+      return html;
+    }
+
+    // 台別専用テーブル生成（当たり回数・ST突入数・ST率・最大連チャン追加）
+    function buildMachineTableHtml(gMachine) {
+      let html = `<tr><th>台名</th><th>勝率</th><th>収支</th><th>当り</th><th>ST</th><th>ST率</th><th>最高連</th></tr>`;
+      for(const [key, arr] of Object.entries(gMachine)) {
+        const count = arr.length;
+        const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
+        const profit = arr.reduce((sum, x) => sum + (x.recover - x.invest), 0);
+        const winRate = count > 0 ? Math.round((wins/count)*100) : 0;
+        
+        const totalHits = arr.reduce((sum, x) => sum + (x.hitCount || 0), 0);
+        const totalSt = arr.reduce((sum, x) => sum + (x.stCount || 0), 0);
+        const stRate = totalHits > 0 ? ((totalSt / totalHits) * 100).toFixed(1) : '0.0';
+        const maxStreak = arr.length > 0 ? Math.max(...arr.map(x => x.maxStreak || 0)) : 0;
+
+        html += `<tr>
+          <td>${key}</td>
+          <td>${wins}/${count}(${winRate}%)</td>
+          <td class="${getClass(profit)}">${formatMoney(profit)}</td>
+          <td>${totalHits}回</td>
+          <td>${totalSt}回</td>
+          <td>${stRate}%</td>
+          <td>${maxStreak}連</td>
+        </tr>`;
       }
       return html;
     }
@@ -544,7 +574,7 @@
 
       document.getElementById('tbl-spec').innerHTML = buildTableHtml(gSpec);
       document.getElementById('tbl-store').innerHTML = buildTableHtml(gStore);
-      document.getElementById('tbl-machine').innerHTML = buildTableHtml(gMachine);
+      document.getElementById('tbl-machine').innerHTML = buildMachineTableHtml(gMachine); // 台別専用描画
       document.getElementById('tbl-special').innerHTML = buildTableHtml(gSpecial);
       document.getElementById('tbl-weekday').innerHTML = buildTableHtml(gWeek);
 
