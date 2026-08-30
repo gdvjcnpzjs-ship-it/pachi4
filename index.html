@@ -35,7 +35,7 @@
     .text-plus { color: var(--plus); text-shadow: 0 0 3px var(--plus); }
     .text-minus { color: var(--minus); text-shadow: 0 0 3px var(--minus); }
     
-    /* iPhone重なり防止用固定ヘッダー */
+    /* 固定ヘッダー（タブ） */
     .tabs { 
       display: flex; 
       position: fixed; 
@@ -53,12 +53,13 @@
       background: none; 
       color: var(--dim); 
       border: none; 
-      font-size: 14px; 
+      font-size: 12px; 
       font-weight: bold; 
       cursor: pointer; 
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 0 2px;
     }
     .tab-btn.active { color: var(--fg); background: var(--card); box-shadow: inset 0 -3px 0 var(--fg); }
     
@@ -87,7 +88,7 @@
       color: var(--fg); 
       border: 1px solid var(--dim); 
       padding: 10px 8px; 
-      font-size: 16px; /* 16pxでiOSのズーム防止 */
+      font-size: 16px; 
       border-radius: 4px; 
       width: 100%; 
       -webkit-appearance: none;
@@ -135,6 +136,17 @@
     th { background: #002200; white-space: nowrap; }
     .chart-container { position: relative; height: 230px; width: 100%; margin-top: 10px; }
     
+    /* カレンダー表示 */
+    .cal-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .cal-table th { text-align: center; padding: 6px 0; background: #002200; font-size: 11px; }
+    .cal-table td { border: 1px solid var(--dim); height: 55px; vertical-align: top; padding: 2px; font-size: 10px; background: var(--card); }
+    .cal-date { font-weight: bold; margin-bottom: 2px; font-size: 11px; }
+    .cal-profit { font-size: 10px; font-weight: bold; line-height: 1.1; word-break: break-all; }
+    .cal-sun { color: #ff5555; }
+    .cal-sat { color: #55ffff; }
+    .cal-today { border: 1px solid var(--fg) !important; background: #002a00; }
+    .cal-other-month { opacity: 0.2; }
+
     hr { border: 0; border-bottom: 1px solid var(--dim); margin: 20px 0; }
   </style>
 </head>
@@ -143,6 +155,7 @@
   <!-- タブ -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('tab-input')">入力/履歴</button>
+    <button class="tab-btn" onclick="switchTab('tab-cal')">カレンダー</button>
     <button class="tab-btn" onclick="switchTab('tab-dash')">分析(DASH)</button>
     <button class="tab-btn" onclick="switchTab('tab-settings')">設定(I/O)</button>
   </div>
@@ -229,7 +242,27 @@
     <div id="history-list"></div>
   </div>
 
-  <!-- タブ2: ダッシュボード -->
+  <!-- タブ2: 収支カレンダー -->
+  <div id="tab-cal" class="container">
+    <div class="dash-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <button type="button" style="width:auto; padding:6px 12px;" onclick="changeCalMonth(-1)">＜ 前月</button>
+        <input type="month" id="cal-month-select" onchange="onCalMonthSelectChange()" style="width:auto; font-size:15px; font-weight:bold; text-align:center;">
+        <button type="button" style="width:auto; padding:6px 12px;" onclick="changeCalMonth(1)">次月 ＞</button>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card"><label>当月投資</label><val id="cal-sum-invest">0円</val></div>
+        <div class="summary-card"><label>当月回収</label><val id="cal-sum-recover">0円</val></div>
+        <div class="summary-card"><label>当月収支</label><val id="cal-sum-profit">0円</val></div>
+        <div class="summary-card"><label>稼働日数</label><val id="cal-sum-days">0日</val></div>
+      </div>
+
+      <div id="calendar-grid"></div>
+    </div>
+  </div>
+
+  <!-- タブ3: ダッシュボード -->
   <div id="tab-dash" class="container">
     <div class="dash-section">
       <h3>収支サマリー ＆ 推移グラフ</h3>
@@ -239,7 +272,6 @@
         <option value="year">今年 (月別)</option>
       </select>
       
-      <!-- 金額表示サマリーカード -->
       <div class="summary-cards">
         <div class="summary-card"><label>総投資</label><val id="sum-invest">0円</val></div>
         <div class="summary-card"><label>総回収</label><val id="sum-recover">0円</val></div>
@@ -285,7 +317,7 @@
     </div>
   </div>
 
-  <!-- タブ3: 設定(I/O) -->
+  <!-- タブ4: 設定(I/O) -->
   <div id="tab-settings" class="container">
     <div class="dash-section">
       <h3>エクスポート (JSON保存)</h3>
@@ -308,6 +340,7 @@
     const STORAGE_KEY = 'PACHI_MATRIX_DATA';
     let data = [];
     let chartInstance = null;
+    let currentCalDate = new Date();
 
     // 初期化
     window.onload = () => {
@@ -338,6 +371,7 @@
       document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
       event.currentTarget.classList.add('active');
       if (tabId === 'tab-dash') renderDashboard();
+      if (tabId === 'tab-cal') renderCalendar();
     }
 
     // データロード
@@ -368,7 +402,7 @@
       else rateEl.className = '';
     }
 
-    // 保存処理（ST突入数追加）
+    // 保存処理
     function saveRecord(isDraft = false) {
       const id = document.getElementById('record-id').value || Date.now().toString();
       const record = {
@@ -447,7 +481,7 @@
       document.getElementById('machineList').innerHTML = machines.map(m => `<option value="${m}">`).join('');
     }
 
-    // 履歴レンダリング（ST突入数の表示追加）
+    // 履歴レンダリング
     function renderHistory() {
       const list = document.getElementById('history-list');
       const sorted = [...data].sort((a,b) => {
@@ -491,7 +525,127 @@
       }).join('');
     }
 
-    // ダッシュボード分析用（標準テーブル）
+    // --- カレンダー機能 ---
+    function changeCalMonth(delta) {
+      currentCalDate.setMonth(currentCalDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function onCalMonthSelectChange() {
+      const val = document.getElementById('cal-month-select').value;
+      if (!val) return;
+      const [y, m] = val.split('-').map(Number);
+      currentCalDate = new Date(y, m - 1, 1);
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const year = currentCalDate.getFullYear();
+      const month = currentCalDate.getMonth();
+      
+      const monthStr = String(month + 1).padStart(2, '0');
+      document.getElementById('cal-month-select').value = `${year}-${monthStr}`;
+
+      const dayMap = {};
+      let totalInv = 0, totalRec = 0, activeDays = 0;
+
+      data.forEach(r => {
+        if (!r.date) return;
+        const [rY, rM] = r.date.split('-').map(Number);
+        if (rY === year && rM === (month + 1)) {
+          if (!dayMap[r.date]) dayMap[r.date] = { invest: 0, recover: 0, count: 0 };
+          dayMap[r.date].invest += r.invest;
+          dayMap[r.date].recover += r.recover;
+          dayMap[r.date].count += 1;
+
+          totalInv += r.invest;
+          totalRec += r.recover;
+        }
+      });
+
+      activeDays = Object.keys(dayMap).length;
+      const totalProfit = totalRec - totalInv;
+
+      document.getElementById('cal-sum-invest').textContent = `${totalInv.toLocaleString()}円`;
+      document.getElementById('cal-sum-recover').textContent = `${totalRec.toLocaleString()}円`;
+      const profEl = document.getElementById('cal-sum-profit');
+      profEl.textContent = `${formatMoney(totalProfit)}円`;
+      profEl.className = getClass(totalProfit);
+      document.getElementById('cal-sum-days').textContent = `${activeDays}日`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const prevLastDate = new Date(year, month, 0).getDate();
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+
+      let html = `<table class="cal-table">
+        <thead>
+          <tr>
+            <th class="cal-sun">日</th>
+            <th>月</th>
+            <th>火</th>
+            <th>水</th>
+            <th>木</th>
+            <th>金</th>
+            <th class="cal-sat">土</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      let dayCount = 1;
+      let nextMonthDay = 1;
+
+      for (let i = 0; i < 6; i++) {
+        html += '<tr>';
+        for (let j = 0; j < 7; j++) {
+          let cellDateStr = '';
+          let dateNum = 0;
+          let isCurrentMonth = true;
+
+          if (i === 0 && j < firstDay) {
+            dateNum = prevLastDate - (firstDay - j - 1);
+            isCurrentMonth = false;
+          } else if (dayCount > lastDate) {
+            dateNum = nextMonthDay++;
+            isCurrentMonth = false;
+          } else {
+            dateNum = dayCount++;
+          }
+
+          if (isCurrentMonth) {
+            const dStr = String(dateNum).padStart(2, '0');
+            cellDateStr = `${year}-${monthStr}-${dStr}`;
+          }
+
+          const isToday = cellDateStr === todayStr;
+          const dayInfo = dayMap[cellDateStr];
+          
+          let cellClass = isCurrentMonth ? '' : 'cal-other-month';
+          if (isToday) cellClass += ' cal-today';
+
+          let dateClass = '';
+          if (j === 0) dateClass = 'cal-sun';
+          if (j === 6) dateClass = 'cal-sat';
+
+          html += `<td class="${cellClass}">`;
+          html += `<div class="cal-date ${dateClass}">${dateNum}</div>`;
+
+          if (isCurrentMonth && dayInfo) {
+            const p = dayInfo.recover - dayInfo.invest;
+            html += `<div class="cal-profit ${getClass(p)}">${formatMoney(p)}</div>`;
+          }
+
+          html += `</td>`;
+        }
+        html += '</tr>';
+        if (dayCount > lastDate && i >= 4) break;
+      }
+
+      html += '</tbody></table>';
+      document.getElementById('calendar-grid').innerHTML = html;
+    }
+
+    // --- ダッシュボード分析関数群 ---
     function calcStats(arr) {
       const count = arr.length;
       const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
@@ -509,9 +663,10 @@
       return html;
     }
 
-    // 台別専用テーブル生成（当たり回数・ST突入数・ST率・最大連チャン追加）
+    // 台別専用テーブル
     function buildMachineTableHtml(gMachine) {
       let html = `<tr><th>台名</th><th>勝率</th><th>収支</th><th>当り</th><th>ST</th><th>ST率</th><th>最高連</th></tr>`;
+      
       for(const [key, arr] of Object.entries(gMachine)) {
         const count = arr.length;
         const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
@@ -574,7 +729,7 @@
 
       document.getElementById('tbl-spec').innerHTML = buildTableHtml(gSpec);
       document.getElementById('tbl-store').innerHTML = buildTableHtml(gStore);
-      document.getElementById('tbl-machine').innerHTML = buildMachineTableHtml(gMachine); // 台別専用描画
+      document.getElementById('tbl-machine').innerHTML = buildMachineTableHtml(gMachine);
       document.getElementById('tbl-special').innerHTML = buildTableHtml(gSpecial);
       document.getElementById('tbl-weekday').innerHTML = buildTableHtml(gWeek);
 
@@ -605,7 +760,6 @@
         return true;
       });
 
-      // 数値サマリー算出
       const totInvest = filtered.reduce((sum, r) => sum + r.invest, 0);
       const totRecover = filtered.reduce((sum, r) => sum + r.recover, 0);
       const totProfit = totRecover - totInvest;
@@ -620,7 +774,6 @@
 
       document.getElementById('sum-rate').textContent = `${totRate}%`;
 
-      // グラフ描画
       let agg = {};
       filtered.forEach(r => {
         let key = (period === 'year' || period === 'all') ? r.date.substring(0,7) : r.date;
