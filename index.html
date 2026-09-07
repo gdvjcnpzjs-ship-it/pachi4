@@ -337,7 +337,7 @@
       <table id="tbl-machine"></table>
     </div>
 
-    <!-- スペック別 統計 (実践数・勝率表示に変更) -->
+    <!-- スペック別 統計 -->
     <div class="dash-section">
       <h3>スペック別 統計 <span style="font-size:10px; color:#00cc33;">[実践別]</span></h3>
       <table id="tbl-spec"></table>
@@ -887,7 +887,7 @@
       }
       document.getElementById('tbl-machine').innerHTML = machHtml;
 
-      // 2. スペック別 統計 (変更：実践数・勝率表記)
+      // 2. スペック別 統計 (実践数列を削除し勝率列のみに改修)
       const gSpec = {};
       data.forEach(r => {
         const sName = r.spec || '未設定';
@@ -906,7 +906,6 @@
 
       let specHtml = `<tr>
         <th>スペック</th>
-        <th>実践数</th>
         <th>勝率</th>
         <th>投資</th>
         <th>回収</th>
@@ -918,7 +917,6 @@
         const winRate = s.count > 0 ? Math.round((s.wins / s.count) * 100) : 0;
         specHtml += `<tr>
           <td>${key}</td>
-          <td>${s.count}回</td>
           <td>${s.wins}/${s.count}(${winRate}%)</td>
           <td>${s.invest.toLocaleString()}</td>
           <td>${s.recover.toLocaleString()}</td>
