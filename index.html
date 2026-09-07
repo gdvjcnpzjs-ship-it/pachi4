@@ -53,7 +53,7 @@
       background: none; 
       color: var(--dim); 
       border: none; 
-      font-size: 10px; /* タブが増えたので縮小 */
+      font-size: 10px;
       font-weight: bold; 
       cursor: pointer; 
       display: flex;
@@ -283,7 +283,7 @@
     
     <div class="diary-tabs">
       <button id="diary-tab-all" class="active" onclick="setDiaryFilter(false)">すべて</button>
-      <button id="diary-tab-liked" onclick="setDiaryFilter(true)">♥ いいね (重要)</button>
+      <button id="diary-tab-liked" onclick="setDiaryFilter(true)"> いいね (重要)</button>
     </div>
     
     <div id="diary-timeline">
@@ -311,7 +311,7 @@
     </div>
   </div>
 
-  <!-- タブ3: ダッシュボード -->
+  <!-- タブ3: ダッシュボード (日別集計版) -->
   <div id="tab-dash" class="container">
     <div class="dash-section">
       <h3>収支サマリー ＆ 推移グラフ</h3>
@@ -332,12 +332,12 @@
     </div>
     
     <div class="dash-section">
-      <h3>特定日・時期 勝率</h3>
+      <h3>特定日・時期 勝率 <span style="font-size:10px; color:#00cc33;">[日別]</span></h3>
       <table id="tbl-special"></table>
     </div>
 
     <div class="dash-section">
-      <h3>投資上限額 シミュレーション</h3>
+      <h3>投資上限額 シミュレーション <span style="font-size:10px; color:#00cc33;">[日別]</span></h3>
       <div class="form-row" style="margin-bottom:10px; align-items: center;">
         <input type="number" id="limit-amount" value="20000" step="1000" oninput="renderLimitStats()" style="width:120px;">
         <span style="font-size: 13px;">円以下 vs 超過</span>
@@ -346,22 +346,12 @@
     </div>
 
     <div class="dash-section">
-      <h3>スペック別 勝率</h3>
-      <table id="tbl-spec"></table>
-    </div>
-    
-    <div class="dash-section">
-      <h3>店別 勝率</h3>
+      <h3>店別 勝率 <span style="font-size:10px; color:#00cc33;">[日別]</span></h3>
       <table id="tbl-store"></table>
     </div>
     
     <div class="dash-section">
-      <h3>台別 詳細データ</h3>
-      <table id="tbl-machine"></table>
-    </div>
-    
-    <div class="dash-section">
-      <h3>曜日別 勝率</h3>
+      <h3>曜日別 勝率 <span style="font-size:10px; color:#00cc33;">[日別]</span></h3>
       <table id="tbl-weekday"></table>
     </div>
   </div>
@@ -566,7 +556,7 @@
               <div>投: ${r.invest.toLocaleString()}円</div>
               <div>回: ${r.recover.toLocaleString()}円</div>
               <div>当り: ${r.hitCount}回${stStr}</div>
-              <div>連ﾁｬﾝ: ${r.maxStreak}連 ${r.kakenuke ? '🏃‍♂️' : ''}</div>
+              <div>連ﾁｬﾝ: ${r.maxStreak}連 ${r.kakenuke ? '♂' : ''}</div>
             </div>
             ${r.memo ? `<div class="card-memo">メモ: ${r.memo}</div>` : ''}
             <div class="card-actions">
@@ -628,13 +618,7 @@
 
     function renderDiary() {
       const container = document.getElementById('diary-timeline');
-      
-      let filtered = diaryData;
-      if (showLikedDiaryOnly) {
-        filtered = diaryData.filter(d => d.liked);
-      }
-      
-      // 新しい順
+      let filtered = showLikedDiaryOnly ? diaryData.filter(d => d.liked) : diaryData;
       const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
 
       if (sorted.length === 0) {
@@ -653,7 +637,7 @@
             <div class="tweet-text">${escapeHTML(d.content)}</div>
             <div class="tweet-footer">
               <button class="btn-action ${d.liked ? 'liked' : ''}" onclick="toggleLikeDiary('${d.id}')">
-                ${d.liked ? '♥' : '♡'}
+                ${d.liked ? '★' : '☆'}
               </button>
               <button class="btn-del-tweet" onclick="deleteDiary('${d.id}')">削除</button>
             </div>
@@ -667,7 +651,6 @@
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[tag] || tag));
     }
-
 
     // --- カレンダー機能 ---
     function changeCalMonth(delta) {
@@ -686,7 +669,6 @@
     function renderCalendar() {
       const year = currentCalDate.getFullYear();
       const month = currentCalDate.getMonth();
-      
       const monthStr = String(month + 1).padStart(2, '0');
       document.getElementById('cal-month-select').value = `${year}-${monthStr}`;
 
@@ -789,49 +771,44 @@
       document.getElementById('calendar-grid').innerHTML = html;
     }
 
-    // --- ダッシュボード分析関数群 ---
-    function calcStats(arr) {
-      const count = arr.length;
-      const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
-      const profit = arr.reduce((sum, x) => sum + (x.recover - x.invest), 0);
-      const rate = count > 0 ? Math.round((wins/count)*100) : 0;
-      return { count, wins, profit, rate };
+    // --- 日別集計用ヘルパー関数群 ---
+
+    // 1. 日別集計データ（1日トータル）を生成
+    function getDailyAggregates() {
+      const dailyMap = {};
+      data.forEach(r => {
+        if (!r.date) return;
+        if (!dailyMap[r.date]) {
+          dailyMap[r.date] = { date: r.date, invest: 0, recover: 0 };
+        }
+        dailyMap[r.date].invest += r.invest;
+        dailyMap[r.date].recover += r.recover;
+      });
+      return Object.values(dailyMap).map(d => {
+        d.profit = d.recover - d.invest;
+        d.isWin = d.profit > 0;
+        return d;
+      });
     }
 
-    function buildTableHtml(groupObj) {
-      let html = `<tr><th>項目</th><th>勝率</th><th>収支</th></tr>`;
-      for(const [key, arr] of Object.entries(groupObj)) {
-        const s = calcStats(arr);
-        html += `<tr><td>${key}</td><td>${s.wins}/${s.count}(${s.rate}%)</td><td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td></tr>`;
-      }
-      return html;
-    }
-
-    function buildMachineTableHtml(gMachine) {
-      let html = `<tr><th>台名</th><th>勝率</th><th>収支</th><th>当り</th><th>ST</th><th>ST率</th><th>最高連</th></tr>`;
-      
-      for(const [key, arr] of Object.entries(gMachine)) {
-        const count = arr.length;
-        const wins = arr.filter(x => (x.recover - x.invest) > 0).length;
-        const profit = arr.reduce((sum, x) => sum + (x.recover - x.invest), 0);
-        const winRate = count > 0 ? Math.round((wins/count)*100) : 0;
-        
-        const totalHits = arr.reduce((sum, x) => sum + (x.hitCount || 0), 0);
-        const totalSt = arr.reduce((sum, x) => sum + (x.stCount || 0), 0);
-        const stRate = totalHits > 0 ? ((totalSt / totalHits) * 100).toFixed(1) : '0.0';
-        const maxStreak = arr.length > 0 ? Math.max(...arr.map(x => x.maxStreak || 0)) : 0;
-
-        html += `<tr>
-          <td>${key}</td>
-          <td>${wins}/${count}(${winRate}%)</td>
-          <td class="${getClass(profit)}">${formatMoney(profit)}</td>
-          <td>${totalHits}回</td>
-          <td>${totalSt}回</td>
-          <td>${stRate}%</td>
-          <td>${maxStreak}連</td>
-        </tr>`;
-      }
-      return html;
+    // 2. 店舗・日別集計データ（同じ日・同じ店舗の遊技を1日1件に合算）
+    function getStoreDailyAggregates() {
+      const storeDailyMap = {};
+      data.forEach(r => {
+        if (!r.date) return;
+        const storeName = r.store || '不明';
+        const key = `${r.date}_${storeName}`;
+        if (!storeDailyMap[key]) {
+          storeDailyMap[key] = { date: r.date, store: storeName, invest: 0, recover: 0 };
+        }
+        storeDailyMap[key].invest += r.invest;
+        storeDailyMap[key].recover += r.recover;
+      });
+      return Object.values(storeDailyMap).map(d => {
+        d.profit = d.recover - d.invest;
+        d.isWin = d.profit > 0;
+        return d;
+      });
     }
 
     function checkSpecialDays(dStr) {
@@ -845,49 +822,131 @@
       return tags;
     }
 
-    function getPeriodInMonth(dStr) {
-      const day = new Date(dStr).getDate();
-      if(day <= 10) return "上旬(1~10日)";
-      if(day <= 20) return "中旬(11~20日)";
-      return "下旬(21日~)";
-    }
-
     function getWeekday(dStr) {
       const w = ['日','月','火','水','木','金','土'];
       return w[new Date(dStr).getDay()] + '曜';
     }
 
+    // --- ダッシュボード描画 ---
     function renderDashboard() {
-      const gSpec = {}, gStore = {}, gMachine = {}, gSpecial = {}, gWeek = {};
+      const dailyList = getDailyAggregates();
+      const storeDailyList = getStoreDailyAggregates();
+
+      // 1. 特定日・時期 勝率（日別）
+      const gSpecial = {};
+      let totalWinDays = 0;
       
-      data.forEach(r => {
-        (gSpec[r.spec] = gSpec[r.spec]||[]).push(r);
-        (gStore[r.store || '不明'] = gStore[r.store || '不明']||[]).push(r);
-        (gMachine[r.machine || '不明'] = gMachine[r.machine || '不明']||[]).push(r);
+      dailyList.forEach(d => {
+        if (d.isWin) totalWinDays++;
         
-        checkSpecialDays(r.date).forEach(t => (gSpecial[t] = gSpecial[t]||[]).push(r));
-        (gSpecial[getPeriodInMonth(r.date)] = gSpecial[getPeriodInMonth(r.date)]||[]).push(r);
-        (gWeek[getWeekday(r.date)] = gWeek[getWeekday(r.date)]||[]).push(r);
+        // 特定日タグの割り当て
+        const tags = checkSpecialDays(d.date);
+        tags.forEach(t => {
+          if (!gSpecial[t]) gSpecial[t] = { days: 0, wins: 0, profit: 0 };
+          gSpecial[t].days++;
+          if (d.isWin) gSpecial[t].wins++;
+          gSpecial[t].profit += d.profit;
+        });
       });
 
-      document.getElementById('tbl-spec').innerHTML = buildTableHtml(gSpec);
-      document.getElementById('tbl-store').innerHTML = buildTableHtml(gStore);
-      document.getElementById('tbl-machine').innerHTML = buildMachineTableHtml(gMachine);
-      document.getElementById('tbl-special').innerHTML = buildTableHtml(gSpecial);
-      document.getElementById('tbl-weekday').innerHTML = buildTableHtml(gWeek);
+      const totalDays = dailyList.length;
+      const totalProfit = dailyList.reduce((sum, d) => sum + d.profit, 0);
+      const totalRate = totalDays > 0 ? Math.round((totalWinDays / totalDays) * 100) : 0;
+
+      let specHtml = `<tr><th>区分</th><th>勝率</th><th>収支</th></tr>`;
+      // 全体（全稼働日）を先頭に追加
+      specHtml += `<tr style="background:#002200; font-weight:bold;">
+        <td>全体 (全稼働日)</td>
+        <td>${totalWinDays}/${totalDays}(${totalRate}%)</td>
+        <td class="${getClass(totalProfit)}">${formatMoney(totalProfit)}</td>
+      </tr>`;
+
+      for (const [key, s] of Object.entries(gSpecial)) {
+        const rate = s.days > 0 ? Math.round((s.wins / s.days) * 100) : 0;
+        specHtml += `<tr>
+          <td>${key}</td>
+          <td>${s.wins}/${s.days}(${rate}%)</td>
+          <td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td>
+        </tr>`;
+      }
+      document.getElementById('tbl-special').innerHTML = specHtml;
+
+      // 2. 店別 勝率（店舗・日別）
+      const gStore = {};
+      storeDailyList.forEach(d => {
+        if (!gStore[d.store]) gStore[d.store] = { days: 0, wins: 0, profit: 0 };
+        gStore[d.store].days++;
+        if (d.isWin) gStore[d.store].wins++;
+        gStore[d.store].profit += d.profit;
+      });
+
+      let storeHtml = `<tr><th>店舗名</th><th>勝率</th><th>収支</th></tr>`;
+      for (const [key, s] of Object.entries(gStore)) {
+        const rate = s.days > 0 ? Math.round((s.wins / s.days) * 100) : 0;
+        storeHtml += `<tr>
+          <td>${key}</td>
+          <td>${s.wins}/${s.days}(${rate}%)</td>
+          <td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td>
+        </tr>`;
+      }
+      document.getElementById('tbl-store').innerHTML = storeHtml;
+
+      // 3. 曜日別 勝率（日別）
+      const gWeek = {};
+      dailyList.forEach(d => {
+        const w = getWeekday(d.date);
+        if (!gWeek[w]) gWeek[w] = { days: 0, wins: 0, profit: 0 };
+        gWeek[w].days++;
+        if (d.isWin) gWeek[w].wins++;
+        gWeek[w].profit += d.profit;
+      });
+
+      let weekHtml = `<tr><th>曜日</th><th>勝率</th><th>収支</th></tr>`;
+      const weekOrder = ['月曜','火曜','水曜','木曜','金曜','土曜','日曜'];
+      weekOrder.forEach(w => {
+        if (gWeek[w]) {
+          const s = gWeek[w];
+          const rate = s.days > 0 ? Math.round((s.wins / s.days) * 100) : 0;
+          weekHtml += `<tr>
+            <td>${w}</td>
+            <td>${s.wins}/${s.days}(${rate}%)</td>
+            <td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td>
+          </tr>`;
+        }
+      });
+      document.getElementById('tbl-weekday').innerHTML = weekHtml;
 
       renderLimitStats();
       renderChartAndSummary();
     }
 
+    // 投資上限額 シミュレーション（日別投資額ベース）
     function renderLimitStats() {
       const limit = Number(document.getElementById('limit-amount').value) || 0;
-      const gLimit = { [`${limit}円以下`]: [], [`${limit}円超過`]: [] };
-      data.forEach(r => {
-        if(r.invest <= limit) gLimit[`${limit}円以下`].push(r);
-        else gLimit[`${limit}円超過`].push(r);
+      const dailyList = getDailyAggregates();
+
+      const gLimit = {
+        [`${limit}円以下`]: { days: 0, wins: 0, profit: 0 },
+        [`${limit}円超過`]: { days: 0, wins: 0, profit: 0 }
+      };
+
+      dailyList.forEach(d => {
+        const key = d.invest <= limit ? `${limit}円以下` : `${limit}円超過`;
+        gLimit[key].days++;
+        if (d.isWin) gLimit[key].wins++;
+        gLimit[key].profit += d.profit;
       });
-      document.getElementById('tbl-limit').innerHTML = buildTableHtml(gLimit);
+
+      let html = `<tr><th>区分</th><th>勝率</th><th>収支</th></tr>`;
+      for (const [key, s] of Object.entries(gLimit)) {
+        const rate = s.days > 0 ? Math.round((s.wins / s.days) * 100) : 0;
+        html += `<tr>
+          <td>${key}</td>
+          <td>${s.wins}/${s.days}(${rate}%)</td>
+          <td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td>
+        </tr>`;
+      }
+      document.getElementById('tbl-limit').innerHTML = html;
     }
 
     function renderChartAndSummary() {
@@ -962,7 +1021,6 @@
 
     // --- エクスポート・インポート ---
     function exportJSON() {
-      // 稼働データとダイアリーデータを結合して出力
       const exportData = {
         records: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
         diaries: JSON.parse(localStorage.getItem(DIARY_KEY) || '[]')
@@ -988,12 +1046,9 @@
           const imported = JSON.parse(e.target.result);
           
           if (Array.isArray(imported)) {
-            // 過去バージョン互換: 稼働データのみの配列
             localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
-            // ダイアリーは空にするか維持するか。今回は上書きなので空にする。
             localStorage.setItem(DIARY_KEY, JSON.stringify([]));
           } else {
-            // 新バージョン: オブジェクト形式
             if (imported.records) localStorage.setItem(STORAGE_KEY, JSON.stringify(imported.records));
             if (imported.diaries) localStorage.setItem(DIARY_KEY, JSON.stringify(imported.diaries));
           }
