@@ -53,7 +53,7 @@
       background: none; 
       color: var(--dim); 
       border: none; 
-      font-size: 12px; 
+      font-size: 10px; /* タブが増えたので縮小 */
       font-weight: bold; 
       cursor: pointer; 
       display: flex;
@@ -148,6 +148,35 @@
     .cal-other-month { opacity: 0.2; }
 
     hr { border: 0; border-bottom: 1px solid var(--dim); margin: 20px 0; }
+
+    /* ダイアリー (X風) */
+    #tab-diary.container { padding: 0; }
+    .diary-compose { padding: 15px; border-bottom: 1px solid var(--dim); background: #000; }
+    .diary-compose textarea { width: 100%; height: 80px; resize: none; font-size: 14px; border: 1px solid var(--dim); }
+    .diary-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .diary-actions button { width: auto; padding: 8px 20px; border-radius: 20px; font-size: 14px; background: var(--fg); color: var(--bg); border: none; }
+    
+    .diary-tabs { display: flex; border-bottom: 1px solid var(--dim); background: var(--card); }
+    .diary-tabs button { flex: 1; background: none; border: none; color: #555; padding: 12px; font-weight: bold; border-radius: 0; }
+    .diary-tabs button.active { color: var(--fg); border-bottom: 3px solid var(--fg); }
+
+    .tweet { display: flex; padding: 15px; border-bottom: 1px solid var(--dim); gap: 12px; background: #000; }
+    .tweet-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--dim); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--bg); flex-shrink: 0; font-size: 14px;}
+    .tweet-content { flex: 1; min-width: 0; }
+    .tweet-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .tweet-name { font-weight: bold; color: var(--plus); font-size: 14px; }
+    .tweet-time { font-size: 11px; color: #888; }
+    .tweet-text { font-size: 14px; white-space: pre-wrap; word-break: break-all; margin-bottom: 10px; line-height: 1.4; }
+    .tweet-footer { display: flex; gap: 25px; align-items: center; }
+    .btn-action { background: none; border: none; color: #555; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; padding: 0; border-radius:0; width:auto; font-weight:normal;}
+    .btn-action:active { background: none; color: #555; }
+    .btn-action.liked { color: var(--minus); }
+    .btn-action.liked:active { color: var(--minus); }
+    .btn-del-tweet { background: none; border: none; color: #444; font-size: 12px; padding: 0; width: auto; border-radius:0;}
+    .btn-del-tweet:active { background: none; color: #444;}
+    
+    #diary-timeline { padding-bottom: 20px; }
+
   </style>
 </head>
 <body>
@@ -155,9 +184,10 @@
   <!-- タブ -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('tab-input')">入力/履歴</button>
+    <button class="tab-btn" onclick="switchTab('tab-diary')">ダイアリー</button>
     <button class="tab-btn" onclick="switchTab('tab-cal')">カレンダー</button>
-    <button class="tab-btn" onclick="switchTab('tab-dash')">分析(DASH)</button>
-    <button class="tab-btn" onclick="switchTab('tab-settings')">設定(I/O)</button>
+    <button class="tab-btn" onclick="switchTab('tab-dash')">分析</button>
+    <button class="tab-btn" onclick="switchTab('tab-settings')">I/O設定</button>
   </div>
 
   <!-- タブ1: 入力/履歴 -->
@@ -242,6 +272,25 @@
     <div id="history-list"></div>
   </div>
 
+  <!-- タブ: ダイアリー (X風) -->
+  <div id="tab-diary" class="container">
+    <div class="diary-compose">
+      <textarea id="diary-input" placeholder="いまどうしてる？（立ち回りのポイントなど）"></textarea>
+      <div class="diary-actions">
+        <button onclick="postDiary()">ポスト</button>
+      </div>
+    </div>
+    
+    <div class="diary-tabs">
+      <button id="diary-tab-all" class="active" onclick="setDiaryFilter(false)">すべて</button>
+      <button id="diary-tab-liked" onclick="setDiaryFilter(true)">♥ いいね (重要)</button>
+    </div>
+    
+    <div id="diary-timeline">
+      <!-- タイムラインがここに描画される -->
+    </div>
+  </div>
+
   <!-- タブ2: 収支カレンダー -->
   <div id="tab-cal" class="container">
     <div class="dash-section">
@@ -321,7 +370,7 @@
   <div id="tab-settings" class="container">
     <div class="dash-section">
       <h3>エクスポート (JSON保存)</h3>
-      <p style="font-size:12px;">現在の全データをファイル出力します。</p>
+      <p style="font-size:12px;">稼働データおよびダイアリーの全データをファイル出力します。</p>
       <button onclick="exportJSON()">JSONを出力する</button>
     </div>
     <div class="dash-section">
@@ -338,9 +387,13 @@
 
   <script>
     const STORAGE_KEY = 'PACHI_MATRIX_DATA';
+    const DIARY_KEY = 'PACHI_MATRIX_DIARY';
+    
     let data = [];
+    let diaryData = [];
     let chartInstance = null;
     let currentCalDate = new Date();
+    let showLikedDiaryOnly = false;
 
     // 初期化
     window.onload = () => {
@@ -372,17 +425,20 @@
       event.currentTarget.classList.add('active');
       if (tabId === 'tab-dash') renderDashboard();
       if (tabId === 'tab-cal') renderCalendar();
+      if (tabId === 'tab-diary') renderDiary();
     }
 
     // データロード
     function loadData() {
       data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      diaryData = JSON.parse(localStorage.getItem(DIARY_KEY) || '[]');
       updateDataLists();
       renderHistory();
       renderTodaySummary();
+      renderDiary();
     }
     
-    // 本日サマリーの描画
+    // --- 稼働記録 機能 ---
     function renderTodaySummary() {
       const todayStr = new Date().toLocaleDateString('sv-SE');
       const todayData = data.filter(r => r.date === todayStr);
@@ -402,7 +458,6 @@
       else rateEl.className = '';
     }
 
-    // 保存処理
     function saveRecord(isDraft = false) {
       const id = document.getElementById('record-id').value || Date.now().toString();
       const record = {
@@ -462,7 +517,6 @@
       document.getElementById('btn-cancel').style.display = 'none';
     }
 
-    // ユーティリティ
     function formatMoney(n) { return (n > 0 ? '+' : '') + n.toLocaleString(); }
     function getClass(n) { return n > 0 ? 'text-plus' : (n < 0 ? 'text-minus' : ''); }
     
@@ -481,7 +535,6 @@
       document.getElementById('machineList').innerHTML = machines.map(m => `<option value="${m}">`).join('');
     }
 
-    // 履歴レンダリング
     function renderHistory() {
       const list = document.getElementById('history-list');
       const sorted = [...data].sort((a,b) => {
@@ -524,6 +577,97 @@
         `;
       }).join('');
     }
+
+    // --- ダイアリー機能 (X風) ---
+    function postDiary() {
+      const input = document.getElementById('diary-input');
+      const content = input.value.trim();
+      if (!content) return;
+
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const datetimeStr = `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+      const post = {
+        id: Date.now().toString(),
+        timestamp: now.getTime(),
+        datetimeStr: datetimeStr,
+        content: content,
+        liked: false
+      };
+
+      diaryData.push(post);
+      localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
+      
+      input.value = '';
+      renderDiary();
+    }
+
+    function toggleLikeDiary(id) {
+      const idx = diaryData.findIndex(d => d.id === id);
+      if (idx > -1) {
+        diaryData[idx].liked = !diaryData[idx].liked;
+        localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
+        renderDiary();
+      }
+    }
+
+    function deleteDiary(id) {
+      if (!confirm('この投稿を削除しますか？')) return;
+      diaryData = diaryData.filter(d => d.id !== id);
+      localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
+      renderDiary();
+    }
+
+    function setDiaryFilter(likedOnly) {
+      showLikedDiaryOnly = likedOnly;
+      document.getElementById('diary-tab-all').classList.toggle('active', !likedOnly);
+      document.getElementById('diary-tab-liked').classList.toggle('active', likedOnly);
+      renderDiary();
+    }
+
+    function renderDiary() {
+      const container = document.getElementById('diary-timeline');
+      
+      let filtered = diaryData;
+      if (showLikedDiaryOnly) {
+        filtered = diaryData.filter(d => d.liked);
+      }
+      
+      // 新しい順
+      const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
+
+      if (sorted.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding: 40px 20px; color: #555; font-size:14px;">投稿がありません</div>`;
+        return;
+      }
+
+      container.innerHTML = sorted.map(d => `
+        <div class="tweet">
+          <div class="tweet-avatar">PM</div>
+          <div class="tweet-content">
+            <div class="tweet-header">
+              <span class="tweet-name">Me</span>
+              <span class="tweet-time">${d.datetimeStr}</span>
+            </div>
+            <div class="tweet-text">${escapeHTML(d.content)}</div>
+            <div class="tweet-footer">
+              <button class="btn-action ${d.liked ? 'liked' : ''}" onclick="toggleLikeDiary('${d.id}')">
+                ${d.liked ? '♥' : '♡'}
+              </button>
+              <button class="btn-del-tweet" onclick="deleteDiary('${d.id}')">削除</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+
 
     // --- カレンダー機能 ---
     function changeCalMonth(delta) {
@@ -663,7 +807,6 @@
       return html;
     }
 
-    // 台別専用テーブル
     function buildMachineTableHtml(gMachine) {
       let html = `<tr><th>台名</th><th>勝率</th><th>収支</th><th>当り</th><th>ST</th><th>ST率</th><th>最高連</th></tr>`;
       
@@ -747,7 +890,6 @@
       document.getElementById('tbl-limit').innerHTML = buildTableHtml(gLimit);
     }
 
-    // Chart.js ＆ 数値サマリー描画
     function renderChartAndSummary() {
       const period = document.getElementById('chart-period').value;
       const sorted = [...data].sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -818,10 +960,15 @@
       });
     }
 
-    // エクスポート・インポート
+    // --- エクスポート・インポート ---
     function exportJSON() {
-      const str = localStorage.getItem(STORAGE_KEY) || '[]';
-      const blob = new Blob([str], { type: 'application/json' });
+      // 稼働データとダイアリーデータを結合して出力
+      const exportData = {
+        records: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
+        diaries: JSON.parse(localStorage.getItem(DIARY_KEY) || '[]')
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -839,8 +986,18 @@
       reader.onload = (e) => {
         try {
           const imported = JSON.parse(e.target.result);
-          if(!Array.isArray(imported)) throw new Error('形式が不正です');
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+          
+          if (Array.isArray(imported)) {
+            // 過去バージョン互換: 稼働データのみの配列
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+            // ダイアリーは空にするか維持するか。今回は上書きなので空にする。
+            localStorage.setItem(DIARY_KEY, JSON.stringify([]));
+          } else {
+            // 新バージョン: オブジェクト形式
+            if (imported.records) localStorage.setItem(STORAGE_KEY, JSON.stringify(imported.records));
+            if (imported.diaries) localStorage.setItem(DIARY_KEY, JSON.stringify(imported.diaries));
+          }
+          
           alert('インポート完了しました！');
           loadData();
           fileInput.value = '';
