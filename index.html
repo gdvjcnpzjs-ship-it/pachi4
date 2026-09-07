@@ -844,12 +844,15 @@
       const dailyList = getDailyAggregates();
       const storeDailyList = getStoreDailyAggregates();
 
-      // 1. 機種別 統計 (台別集計)
+      // 1. 機種別 統計 (台別集計 & スペックソート)
+      const specOrder = ['MAX', 'ミドル', 'ライトミドル', '甘デジ', 'Aタイプ', 'ATタイプ'];
       const gMachine = {};
       data.forEach(r => {
         const mName = r.machine || '不明';
         if (!gMachine[mName]) {
-          gMachine[mName] = { invest: 0, recover: 0, hitCount: 0, stCount: 0, maxStreak: 0 };
+          gMachine[mName] = { spec: r.spec || '未設定', invest: 0, recover: 0, hitCount: 0, stCount: 0, maxStreak: 0 };
+        } else if (r.spec && gMachine[mName].spec === '未設定') {
+          gMachine[mName].spec = r.spec;
         }
         gMachine[mName].invest += (r.invest || 0);
         gMachine[mName].recover += (r.recover || 0);
@@ -860,8 +863,19 @@
         }
       });
 
+      // スペック順 ➔ 機種名順にソート
+      const sortedMachines = Object.entries(gMachine).sort(([aName, aData], [bName, bData]) => {
+        let idxA = specOrder.indexOf(aData.spec);
+        let idxB = specOrder.indexOf(bData.spec);
+        if (idxA === -1) idxA = 999;
+        if (idxB === -1) idxB = 999;
+        if (idxA !== idxB) return idxA - idxB;
+        return aName.localeCompare(bName, 'ja');
+      });
+
       let machHtml = `<tr>
         <th>機種名</th>
+        <th>スペック</th>
         <th>投資</th>
         <th>回収</th>
         <th>収支</th>
@@ -871,11 +885,12 @@
         <th>最大連</th>
       </tr>`;
 
-      for (const [key, s] of Object.entries(gMachine)) {
+      for (const [key, s] of sortedMachines) {
         const profit = s.recover - s.invest;
         const stRate = s.hitCount > 0 ? ((s.stCount / s.hitCount) * 100).toFixed(1) + '%' : '0%';
         machHtml += `<tr>
           <td>${key}</td>
+          <td>${s.spec}</td>
           <td>${s.invest.toLocaleString()}</td>
           <td>${s.recover.toLocaleString()}</td>
           <td class="${getClass(profit)}">${formatMoney(profit)}</td>
@@ -887,7 +902,7 @@
       }
       document.getElementById('tbl-machine').innerHTML = machHtml;
 
-      // 2. スペック別 統計 (実践数列を削除し勝率列のみに改修)
+      // 2. スペック別 統計
       const gSpec = {};
       data.forEach(r => {
         const sName = r.spec || '未設定';
