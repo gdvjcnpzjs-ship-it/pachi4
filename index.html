@@ -311,7 +311,7 @@
     </div>
   </div>
 
-  <!-- タブ3: ダッシュボード (日別集計版) -->
+  <!-- タブ3: ダッシュボード -->
   <div id="tab-dash" class="container">
     <div class="dash-section">
       <h3>収支サマリー ＆ 推移グラフ</h3>
@@ -329,6 +329,12 @@
       </div>
 
       <div class="chart-container"><canvas id="myChart"></canvas></div>
+    </div>
+
+    <!-- 復活：機種別 統計 -->
+    <div class="dash-section">
+      <h3>機種別 統計 <span style="font-size:10px; color:#00cc33;">[機種別]</span></h3>
+      <table id="tbl-machine"></table>
     </div>
     
     <div class="dash-section">
@@ -832,6 +838,55 @@
       const dailyList = getDailyAggregates();
       const storeDailyList = getStoreDailyAggregates();
 
+      // 0. 機種別 統計 (復活)
+      const gMachine = {};
+      data.forEach(r => {
+        const mName = r.machine || '不明';
+        if (!gMachine[mName]) {
+          gMachine[mName] = {
+            invest: 0,
+            recover: 0,
+            hitCount: 0,
+            stCount: 0,
+            maxStreak: 0
+          };
+        }
+        gMachine[mName].invest += (r.invest || 0);
+        gMachine[mName].recover += (r.recover || 0);
+        gMachine[mName].hitCount += (r.hitCount || 0);
+        gMachine[mName].stCount += (r.stCount || 0);
+        if ((r.maxStreak || 0) > gMachine[mName].maxStreak) {
+          gMachine[mName].maxStreak = (r.maxStreak || 0);
+        }
+      });
+
+      let machHtml = `<tr>
+        <th>機種名</th>
+        <th>投資</th>
+        <th>回収</th>
+        <th>収支</th>
+        <th>当り</th>
+        <th>ST</th>
+        <th>ST率</th>
+        <th>最大連</th>
+      </tr>`;
+
+      for (const [key, s] of Object.entries(gMachine)) {
+        const profit = s.recover - s.invest;
+        const stRate = s.hitCount > 0 ? ((s.stCount / s.hitCount) * 100).toFixed(1) + '%' : '0%';
+        machHtml += `<tr>
+          <td>${key}</td>
+          <td>${s.invest.toLocaleString()}</td>
+          <td>${s.recover.toLocaleString()}</td>
+          <td class="${getClass(profit)}">${formatMoney(profit)}</td>
+          <td>${s.hitCount}</td>
+          <td>${s.stCount}</td>
+          <td>${stRate}</td>
+          <td>${s.maxStreak}連</td>
+        </tr>`;
+      }
+      document.getElementById('tbl-machine').innerHTML = machHtml;
+
       // 1. 特定日・時期 勝率（日別）
       const gSpecial = {};
       let totalWinDays = 0;
@@ -839,7 +894,6 @@
       dailyList.forEach(d => {
         if (d.isWin) totalWinDays++;
         
-        // 特定日タグの割り当て
         const tags = checkSpecialDays(d.date);
         tags.forEach(t => {
           if (!gSpecial[t]) gSpecial[t] = { days: 0, wins: 0, profit: 0 };
@@ -854,7 +908,6 @@
       const totalRate = totalDays > 0 ? Math.round((totalWinDays / totalDays) * 100) : 0;
 
       let specHtml = `<tr><th>区分</th><th>勝率</th><th>収支</th></tr>`;
-      // 全体（全稼働日）を先頭に追加
       specHtml += `<tr style="background:#002200; font-weight:bold;">
         <td>全体 (全稼働日)</td>
         <td>${totalWinDays}/${totalDays}(${totalRate}%)</td>
