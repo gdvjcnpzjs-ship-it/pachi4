@@ -331,10 +331,16 @@
       <div class="chart-container"><canvas id="myChart"></canvas></div>
     </div>
 
-    <!-- 復活：機種別 統計 -->
+    <!-- 機種別 統計 -->
     <div class="dash-section">
       <h3>機種別 統計 <span style="font-size:10px; color:#00cc33;">[機種別]</span></h3>
       <table id="tbl-machine"></table>
+    </div>
+
+    <!-- 復活：スペック別 統計 -->
+    <div class="dash-section">
+      <h3>スペック別 統計 <span style="font-size:10px; color:#00cc33;">[台別]</span></h3>
+      <table id="tbl-spec"></table>
     </div>
     
     <div class="dash-section">
@@ -838,18 +844,12 @@
       const dailyList = getDailyAggregates();
       const storeDailyList = getStoreDailyAggregates();
 
-      // 0. 機種別 統計 (復活)
+      // 1. 機種別 統計 (台別集計)
       const gMachine = {};
       data.forEach(r => {
         const mName = r.machine || '不明';
         if (!gMachine[mName]) {
-          gMachine[mName] = {
-            invest: 0,
-            recover: 0,
-            hitCount: 0,
-            stCount: 0,
-            maxStreak: 0
-          };
+          gMachine[mName] = { invest: 0, recover: 0, hitCount: 0, stCount: 0, maxStreak: 0 };
         }
         gMachine[mName].invest += (r.invest || 0);
         gMachine[mName].recover += (r.recover || 0);
@@ -887,7 +887,53 @@
       }
       document.getElementById('tbl-machine').innerHTML = machHtml;
 
-      // 1. 特定日・時期 勝率（日別）
+      // 2. スペック別 統計 (復活：台別集計)
+      const gSpec = {};
+      data.forEach(r => {
+        const sName = r.spec || '未設定';
+        if (!gSpec[sName]) {
+          gSpec[sName] = { invest: 0, recover: 0, hitCount: 0, stCount: 0, maxStreak: 0, count: 0 };
+        }
+        gSpec[sName].invest += (r.invest || 0);
+        gSpec[sName].recover += (r.recover || 0);
+        gSpec[sName].hitCount += (r.hitCount || 0);
+        gSpec[sName].stCount += (r.stCount || 0);
+        gSpec[sName].count += 1;
+        if ((r.maxStreak || 0) > gSpec[sName].maxStreak) {
+          gSpec[sName].maxStreak = (r.maxStreak || 0);
+        }
+      });
+
+      let specHtml = `<tr>
+        <th>スペック</th>
+        <th>打台数</th>
+        <th>投資</th>
+        <th>回収</th>
+        <th>収支</th>
+        <th>当り</th>
+        <th>ST</th>
+        <th>ST率</th>
+        <th>最大連</th>
+      </tr>`;
+
+      for (const [key, s] of Object.entries(gSpec)) {
+        const profit = s.recover - s.invest;
+        const stRate = s.hitCount > 0 ? ((s.stCount / s.hitCount) * 100).toFixed(1) + '%' : '0%';
+        specHtml += `<tr>
+          <td>${key}</td>
+          <td>${s.count}台</td>
+          <td>${s.invest.toLocaleString()}</td>
+          <td>${s.recover.toLocaleString()}</td>
+          <td class="${getClass(profit)}">${formatMoney(profit)}</td>
+          <td>${s.hitCount}</td>
+          <td>${s.stCount}</td>
+          <td>${stRate}</td>
+          <td>${s.maxStreak}連</td>
+        </tr>`;
+      }
+      document.getElementById('tbl-spec').innerHTML = specHtml;
+
+      // 3. 特定日・時期 勝率（日別）
       const gSpecial = {};
       let totalWinDays = 0;
       
@@ -907,8 +953,8 @@
       const totalProfit = dailyList.reduce((sum, d) => sum + d.profit, 0);
       const totalRate = totalDays > 0 ? Math.round((totalWinDays / totalDays) * 100) : 0;
 
-      let specHtml = `<tr><th>区分</th><th>勝率</th><th>収支</th></tr>`;
-      specHtml += `<tr style="background:#002200; font-weight:bold;">
+      let specDayHtml = `<tr><th>区分</th><th>勝率</th><th>収支</th></tr>`;
+      specDayHtml += `<tr style="background:#002200; font-weight:bold;">
         <td>全体 (全稼働日)</td>
         <td>${totalWinDays}/${totalDays}(${totalRate}%)</td>
         <td class="${getClass(totalProfit)}">${formatMoney(totalProfit)}</td>
@@ -916,15 +962,15 @@
 
       for (const [key, s] of Object.entries(gSpecial)) {
         const rate = s.days > 0 ? Math.round((s.wins / s.days) * 100) : 0;
-        specHtml += `<tr>
+        specDayHtml += `<tr>
           <td>${key}</td>
           <td>${s.wins}/${s.days}(${rate}%)</td>
           <td class="${getClass(s.profit)}">${formatMoney(s.profit)}</td>
         </tr>`;
       }
-      document.getElementById('tbl-special').innerHTML = specHtml;
+      document.getElementById('tbl-special').innerHTML = specDayHtml;
 
-      // 2. 店別 勝率（店舗・日別）
+      // 4. 店別 勝率（店舗・日別）
       const gStore = {};
       storeDailyList.forEach(d => {
         if (!gStore[d.store]) gStore[d.store] = { days: 0, wins: 0, profit: 0 };
@@ -944,7 +990,7 @@
       }
       document.getElementById('tbl-store').innerHTML = storeHtml;
 
-      // 3. 曜日別 勝率（日別）
+      // 5. 曜日別 勝率（日別）
       const gWeek = {};
       dailyList.forEach(d => {
         const w = getWeekday(d.date);
