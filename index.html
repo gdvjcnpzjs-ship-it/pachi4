@@ -337,9 +337,9 @@
       <table id="tbl-machine"></table>
     </div>
 
-    <!-- 復活：スペック別 統計 -->
+    <!-- スペック別 統計 (実践数・勝率表示に変更) -->
     <div class="dash-section">
-      <h3>スペック別 統計 <span style="font-size:10px; color:#00cc33;">[台別]</span></h3>
+      <h3>スペック別 統計 <span style="font-size:10px; color:#00cc33;">[実践別]</span></h3>
       <table id="tbl-spec"></table>
     </div>
     
@@ -887,48 +887,42 @@
       }
       document.getElementById('tbl-machine').innerHTML = machHtml;
 
-      // 2. スペック別 統計 (復活：台別集計)
+      // 2. スペック別 統計 (変更：実践数・勝率表記)
       const gSpec = {};
       data.forEach(r => {
         const sName = r.spec || '未設定';
         if (!gSpec[sName]) {
-          gSpec[sName] = { invest: 0, recover: 0, hitCount: 0, stCount: 0, maxStreak: 0, count: 0 };
+          gSpec[sName] = { invest: 0, recover: 0, wins: 0, count: 0 };
         }
-        gSpec[sName].invest += (r.invest || 0);
-        gSpec[sName].recover += (r.recover || 0);
-        gSpec[sName].hitCount += (r.hitCount || 0);
-        gSpec[sName].stCount += (r.stCount || 0);
+        const inv = r.invest || 0;
+        const rec = r.recover || 0;
+        const profit = rec - inv;
+
+        gSpec[sName].invest += inv;
+        gSpec[sName].recover += rec;
         gSpec[sName].count += 1;
-        if ((r.maxStreak || 0) > gSpec[sName].maxStreak) {
-          gSpec[sName].maxStreak = (r.maxStreak || 0);
-        }
+        if (profit > 0) gSpec[sName].wins += 1;
       });
 
       let specHtml = `<tr>
         <th>スペック</th>
-        <th>打台数</th>
+        <th>実践数</th>
+        <th>勝率</th>
         <th>投資</th>
         <th>回収</th>
         <th>収支</th>
-        <th>当り</th>
-        <th>ST</th>
-        <th>ST率</th>
-        <th>最大連</th>
       </tr>`;
 
       for (const [key, s] of Object.entries(gSpec)) {
         const profit = s.recover - s.invest;
-        const stRate = s.hitCount > 0 ? ((s.stCount / s.hitCount) * 100).toFixed(1) + '%' : '0%';
+        const winRate = s.count > 0 ? Math.round((s.wins / s.count) * 100) : 0;
         specHtml += `<tr>
           <td>${key}</td>
-          <td>${s.count}台</td>
+          <td>${s.count}回</td>
+          <td>${s.wins}/${s.count}(${winRate}%)</td>
           <td>${s.invest.toLocaleString()}</td>
           <td>${s.recover.toLocaleString()}</td>
           <td class="${getClass(profit)}">${formatMoney(profit)}</td>
-          <td>${s.hitCount}</td>
-          <td>${s.stCount}</td>
-          <td>${stRate}</td>
-          <td>${s.maxStreak}連</td>
         </tr>`;
       }
       document.getElementById('tbl-spec').innerHTML = specHtml;
