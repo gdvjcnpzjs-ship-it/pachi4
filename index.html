@@ -95,7 +95,8 @@
     }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--fg); }
     input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--fg); -webkit-appearance: checkbox; }
-    .checkbox-group { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    .checkbox-group { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; }
     
     button { 
       background: var(--card); 
@@ -167,7 +168,7 @@
     .tweet-name { font-weight: bold; color: var(--plus); font-size: 14px; }
     .tweet-time { font-size: 11px; color: #888; }
     .tweet-text { font-size: 14px; white-space: pre-wrap; word-break: break-all; margin-bottom: 10px; line-height: 1.4; }
-    .tweet-footer { display: flex; gap: 25px; align-items: center; }
+    .tweet-footer { display: flex; gap: 18px; align-items: center; }
     .btn-action { background: none; border: none; color: #555; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; padding: 0; border-radius:0; width:auto; font-weight:normal;}
     .btn-action:active { background: none; color: #555; }
     .btn-action.liked { color: var(--minus); }
@@ -244,8 +245,14 @@
       </div>
       
       <div class="checkbox-group">
-        <input type="checkbox" id="kakenuke">
-        <label for="kakenuke" style="font-size: 14px; margin:0;">駆け抜け (見せ場なし)</label>
+        <div class="checkbox-item">
+          <input type="checkbox" id="dekaheso">
+          <label for="dekaheso" style="font-size: 14px; margin:0;">デカヘソ</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="kakenuke">
+          <label for="kakenuke" style="font-size: 14px; margin:0;">駆け抜け (見せ場なし)</label>
+        </div>
       </div>
       
       <div class="form-row">
@@ -467,6 +474,7 @@
         isDraft: isDraft,
         date: document.getElementById('date').value,
         spec: document.getElementById('spec').value,
+        dekaheso: document.getElementById('dekaheso').checked,
         store: document.getElementById('store').value.trim(),
         machine: document.getElementById('machine').value.trim(),
         startTime: document.getElementById('startTime').value,
@@ -495,6 +503,7 @@
       ['date','spec','store','machine','startTime','endTime','hitCount','stCount','maxStreak','invest','recover','memo'].forEach(k => {
         document.getElementById(k).value = r[k] !== undefined ? r[k] : '';
       });
+      document.getElementById('dekaheso').checked = r.dekaheso || false;
       document.getElementById('kakenuke').checked = r.kakenuke || false;
       updateResultUI();
       document.getElementById('btn-save').textContent = '確定更新';
@@ -513,6 +522,7 @@
       document.getElementById('record-form').reset();
       document.getElementById('record-id').value = '';
       document.getElementById('spec').value = 'MAX';
+      document.getElementById('dekaheso').checked = false;
       document.getElementById('date').value = new Date().toLocaleDateString('sv-SE');
       updateResultUI();
       document.getElementById('btn-save').textContent = '確定保存';
@@ -555,6 +565,7 @@
         const draftBadge = r.isDraft ? '<span style="color:#ffaa00; border:1px solid #ffaa00; font-size:10px; padding:1px 4px; border-radius:3px; margin-right:5px;">一時保存</span>' : '';
         const timeStr = r.startTime ? `${r.startTime}${r.endTime ? '~'+r.endTime : ''}` : '';
         const stStr = r.stCount !== undefined ? ` (ST:${r.stCount})` : '';
+        const specLabel = r.spec + (r.dekaheso ? '/デカヘソ' : '');
         
         return `
           <div class="card" style="${r.isDraft ? 'border-color:#ffaa00;' : ''}">
@@ -564,7 +575,7 @@
             </div>
             <div class="card-body">
               <div>店: ${r.store || '-'}</div>
-              <div>台: ${r.machine || '-'} (${r.spec})</div>
+              <div>台: ${r.machine || '-'} (${specLabel})</div>
               <div>投: ${r.invest.toLocaleString()}円</div>
               <div>回: ${r.recover.toLocaleString()}円</div>
               <div>当り: ${r.hitCount}回${stStr}</div>
@@ -603,6 +614,17 @@
       
       input.value = '';
       renderDiary();
+    }
+
+    function editDiary(id) {
+      const post = diaryData.find(d => d.id === id);
+      if (!post) return;
+      const newContent = prompt('メモを編集:', post.content);
+      if (newContent !== null && newContent.trim() !== '') {
+        post.content = newContent.trim();
+        localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
+        renderDiary();
+      }
     }
 
     function toggleLikeDiary(id) {
@@ -651,6 +673,7 @@
               <button class="btn-action ${d.liked ? 'liked' : ''}" onclick="toggleLikeDiary('${d.id}')">
                 ${d.liked ? '★' : '☆'}
               </button>
+              <button class="btn-action" onclick="editDiary('${d.id}')">編集</button>
               <button class="btn-del-tweet" onclick="deleteDiary('${d.id}')">削除</button>
             </div>
           </div>
@@ -902,10 +925,12 @@
       }
       document.getElementById('tbl-machine').innerHTML = machHtml;
 
-      // 2. スペック別 統計
+      // 2. スペック別 統計 (デカヘソは別扱い区分け)
       const gSpec = {};
       data.forEach(r => {
-        const sName = r.spec || '未設定';
+        const baseSpec = r.spec || '未設定';
+        const sName = baseSpec + (r.dekaheso ? ' (デカヘソ)' : '');
+        
         if (!gSpec[sName]) {
           gSpec[sName] = { invest: 0, recover: 0, wins: 0, count: 0 };
         }
