@@ -404,6 +404,7 @@
     let chartInstance = null;
     let currentCalDate = new Date();
     let showLikedDiaryOnly = false;
+    let editingDiaryId = null;
 
     // 初期化
     window.onload = () => {
@@ -618,14 +619,28 @@
     }
 
     function editDiary(id) {
+      editingDiaryId = id;
+      renderDiary();
+    }
+
+    function cancelEditDiary() {
+      editingDiaryId = null;
+      renderDiary();
+    }
+
+    function saveDiary(id) {
       const post = diaryData.find(d => d.id === id);
       if (!post) return;
-      const newContent = prompt('メモを編集:', post.content);
-      if (newContent !== null && newContent.trim() !== '') {
-        post.content = newContent.trim();
-        localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
-        renderDiary();
+      const input = document.getElementById(`edit-diary-input-${id}`);
+      if (input) {
+        const newContent = input.value.trim();
+        if (newContent !== '') {
+          post.content = newContent;
+          localStorage.setItem(DIARY_KEY, JSON.stringify(diaryData));
+        }
       }
+      editingDiaryId = null;
+      renderDiary();
     }
 
     function toggleLikeDiary(id) {
@@ -661,25 +676,45 @@
         return;
       }
 
-      container.innerHTML = sorted.map(d => `
-        <div class="tweet">
-          <div class="tweet-avatar">PM</div>
-          <div class="tweet-content">
-            <div class="tweet-header">
-              <span class="tweet-name">Me</span>
-              <span class="tweet-time">${d.datetimeStr}</span>
+      container.innerHTML = sorted.map(d => {
+        if (d.id === editingDiaryId) {
+          return `
+            <div class="tweet">
+              <div class="tweet-avatar">PM</div>
+              <div class="tweet-content">
+                <div class="tweet-header">
+                  <span class="tweet-name">Me</span>
+                  <span class="tweet-time">${d.datetimeStr}</span>
+                </div>
+                <textarea id="edit-diary-input-${d.id}" style="width:100%; height:80px; resize:none; font-size:14px; border:1px solid var(--dim); background:var(--card); color:var(--fg); margin-bottom:8px;">${escapeHTML(d.content)}</textarea>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                  <button style="width:auto; padding:4px 12px; font-size:12px; background:#333; color:#fff; border:none; border-radius:4px;" onclick="cancelEditDiary()">キャンセル</button>
+                  <button style="width:auto; padding:4px 12px; font-size:12px; background:var(--fg); color:var(--bg); border:none; border-radius:4px; font-weight:bold;" onclick="saveDiary('${d.id}')">保存</button>
+                </div>
+              </div>
             </div>
-            <div class="tweet-text">${escapeHTML(d.content)}</div>
-            <div class="tweet-footer">
-              <button class="btn-action ${d.liked ? 'liked' : ''}" onclick="toggleLikeDiary('${d.id}')">
-                ${d.liked ? '★' : '☆'}
-              </button>
-              <button class="btn-action" onclick="editDiary('${d.id}')">編集</button>
-              <button class="btn-del-tweet" onclick="deleteDiary('${d.id}')">削除</button>
+          `;
+        }
+        return `
+          <div class="tweet">
+            <div class="tweet-avatar">PM</div>
+            <div class="tweet-content">
+              <div class="tweet-header">
+                <span class="tweet-name">Me</span>
+                <span class="tweet-time">${d.datetimeStr}</span>
+              </div>
+              <div class="tweet-text">${escapeHTML(d.content)}</div>
+              <div class="tweet-footer">
+                <button class="btn-action ${d.liked ? 'liked' : ''}" onclick="toggleLikeDiary('${d.id}')">
+                  ${d.liked ? '★' : '☆'}
+                </button>
+                <button class="btn-action" onclick="editDiary('${d.id}')">編集</button>
+                <button class="btn-del-tweet" onclick="deleteDiary('${d.id}')">削除</button>
+              </div>
             </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function escapeHTML(str) {
