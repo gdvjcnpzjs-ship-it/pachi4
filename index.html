@@ -379,6 +379,14 @@
   <!-- タブ4: 設定(I/O) -->
   <div id="tab-settings" class="container">
     <div class="dash-section">
+      <h3>トータル収支 調整額設定</h3>
+      <p style="font-size:12px;">分析（機種・店舗・スペック等）には影響させず、トータル収支・推移グラフにのみ反映させるマイナス金額/調整額を設定できます。</p>
+      <div class="form-row" style="align-items: center; margin-bottom: 10px;">
+        <input type="number" id="adjust-amount" placeholder="例: -50000" style="max-width:200px;">
+        <button type="button" onclick="saveAdjustAmount()" style="width:auto; padding:10px 20px;">調整額を保存</button>
+      </div>
+    </div>
+    <div class="dash-section">
       <h3>エクスポート (JSON保存)</h3>
       <p style="font-size:12px;">稼働データおよびダイアリーの全データをファイル出力します。</p>
       <button onclick="exportJSON()">JSONを出力する</button>
@@ -398,6 +406,7 @@
   <script>
     const STORAGE_KEY = 'PACHI_MATRIX_DATA';
     const DIARY_KEY = 'PACHI_MATRIX_DIARY';
+    const ADJUST_KEY = 'PACHI_MATRIX_ADJUST';
     
     let data = [];
     let diaryData = [];
@@ -443,10 +452,21 @@
     function loadData() {
       data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       diaryData = JSON.parse(localStorage.getItem(DIARY_KEY) || '[]');
+      const adjust = localStorage.getItem(ADJUST_KEY) || '0';
+      if (document.getElementById('adjust-amount')) {
+        document.getElementById('adjust-amount').value = adjust;
+      }
       updateDataLists();
       renderHistory();
       renderTodaySummary();
       renderDiary();
+    }
+
+    function saveAdjustAmount() {
+      const val = document.getElementById('adjust-amount').value;
+      localStorage.setItem(ADJUST_KEY, val || '0');
+      alert('調整額を保存しました。');
+      renderDashboard();
     }
     
     // --- 稼働記録 機能 ---
@@ -1128,9 +1148,11 @@
         return true;
       });
 
+      const adjustAmount = Number(localStorage.getItem(ADJUST_KEY) || 0);
+
       const totInvest = filtered.reduce((sum, r) => sum + r.invest, 0);
       const totRecover = filtered.reduce((sum, r) => sum + r.recover, 0);
-      const totProfit = totRecover - totInvest;
+      const totProfit = totRecover - totInvest + adjustAmount;
       const totRate = totInvest > 0 ? ((totRecover / totInvest) * 100).toFixed(1) : (totRecover > 0 ? 100 : 0);
 
       document.getElementById('sum-invest').textContent = `${totInvest.toLocaleString()}円`;
@@ -1149,7 +1171,7 @@
       });
 
       const labels = Object.keys(agg).sort();
-      let cumulative = 0;
+      let cumulative = adjustAmount;
       const chartData = labels.map(k => {
         cumulative += agg[k];
         return cumulative;
@@ -1190,7 +1212,8 @@
     function exportJSON() {
       const exportData = {
         records: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
-        diaries: JSON.parse(localStorage.getItem(DIARY_KEY) || '[]')
+        diaries: JSON.parse(localStorage.getItem(DIARY_KEY) || '[]'),
+        adjust: localStorage.getItem(ADJUST_KEY) || '0'
       };
       
       const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
@@ -1215,9 +1238,11 @@
           if (Array.isArray(imported)) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
             localStorage.setItem(DIARY_KEY, JSON.stringify([]));
+            localStorage.setItem(ADJUST_KEY, '0');
           } else {
             if (imported.records) localStorage.setItem(STORAGE_KEY, JSON.stringify(imported.records));
             if (imported.diaries) localStorage.setItem(DIARY_KEY, JSON.stringify(imported.diaries));
+            if (imported.adjust !== undefined) localStorage.setItem(ADJUST_KEY, imported.adjust);
           }
           
           alert('インポート完了しました！');
