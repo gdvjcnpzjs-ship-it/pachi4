@@ -320,6 +320,15 @@
 
   <!-- タブ3: ダッシュボード -->
   <div id="tab-dash" class="container">
+    
+    <!-- 新設: 全期間トータル収支（調整額込み）専用枠 -->
+    <div class="dash-section">
+      <h3>全期間トータル収支 (調整額込み)</h3>
+      <div class="summary-card" style="padding: 15px;">
+        <val id="final-total-profit" style="font-size: 22px;">0円</val>
+      </div>
+    </div>
+
     <div class="dash-section">
       <h3>収支サマリー ＆ 推移グラフ</h3>
       <select id="chart-period" onchange="renderDashboard()" style="margin-bottom:10px;">
@@ -380,7 +389,7 @@
   <div id="tab-settings" class="container">
     <div class="dash-section">
       <h3>トータル収支 調整額設定</h3>
-      <p style="font-size:12px;">分析（機種・店舗・スペック等）には影響させず、トータル収支・推移グラフにのみ反映させるマイナス金額/調整額を設定できます。</p>
+      <p style="font-size:12px;">実践の各種分析や収支サマリー・推移グラフには影響させず、専用の「全期間トータル収支 (調整額込み)」枠にのみ反映させる調整額を設定できます。</p>
       <div class="form-row" style="align-items: center; margin-bottom: 10px;">
         <input type="number" id="adjust-amount" placeholder="例: -50000" style="max-width:200px;">
         <button type="button" onclick="saveAdjustAmount()" style="width:auto; padding:10px 20px;">調整額を保存</button>
@@ -1150,9 +1159,21 @@
 
       const adjustAmount = Number(localStorage.getItem(ADJUST_KEY) || 0);
 
+      // 1. 全期間トータル収支（調整額込み）専用枠の描画
+      const allInvest = data.reduce((sum, r) => sum + (r.invest || 0), 0);
+      const allRecover = data.reduce((sum, r) => sum + (r.recover || 0), 0);
+      const finalTotalProfit = allRecover - allInvest + adjustAmount;
+      
+      const finalEl = document.getElementById('final-total-profit');
+      if (finalEl) {
+        finalEl.textContent = `${formatMoney(finalTotalProfit)}円`;
+        finalEl.className = getClass(finalTotalProfit);
+      }
+
+      // 2. 収支サマリー（調整額を含めない純粋な収支）
       const totInvest = filtered.reduce((sum, r) => sum + r.invest, 0);
       const totRecover = filtered.reduce((sum, r) => sum + r.recover, 0);
-      const totProfit = totRecover - totInvest + adjustAmount;
+      const totProfit = totRecover - totInvest;
       const totRate = totInvest > 0 ? ((totRecover / totInvest) * 100).toFixed(1) : (totRecover > 0 ? 100 : 0);
 
       document.getElementById('sum-invest').textContent = `${totInvest.toLocaleString()}円`;
@@ -1164,6 +1185,7 @@
 
       document.getElementById('sum-rate').textContent = `${totRate}%`;
 
+      // 3. 推移グラフ（調整額を含めない純粋な累計収支）
       let agg = {};
       filtered.forEach(r => {
         let key = (period === 'year' || period === 'all') ? r.date.substring(0,7) : r.date;
@@ -1171,7 +1193,7 @@
       });
 
       const labels = Object.keys(agg).sort();
-      let cumulative = adjustAmount;
+      let cumulative = 0;
       const chartData = labels.map(k => {
         cumulative += agg[k];
         return cumulative;
